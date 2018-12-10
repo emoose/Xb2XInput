@@ -16,87 +16,87 @@ bool usb_end = false;
 #pragma region Startup Helpers
 long RegistryGetString(HKEY hKey, const std::wstring& valueName, std::wstring& value, const std::wstring& defaultValue)
 {
-	value = defaultValue;
-	WCHAR buffer[512];
-	DWORD bufferSize = sizeof(buffer);
-	long res = RegQueryValueEx(hKey, valueName.c_str(), 0, NULL, (LPBYTE)buffer, &bufferSize);
-	if (res == ERROR_SUCCESS)
-		value = buffer;
+  value = defaultValue;
+  WCHAR buffer[512];
+  DWORD bufferSize = sizeof(buffer);
+  long res = RegQueryValueEx(hKey, valueName.c_str(), 0, NULL, (LPBYTE)buffer, &bufferSize);
+  if (res == ERROR_SUCCESS)
+    value = buffer;
 
-	return res;
+  return res;
 }
 
 long RegistrySetString(HKEY hKey, const std::wstring& valueName, const std::wstring& value)
 {
-	return RegSetValueExW(hKey, valueName.c_str(), 0, REG_SZ, (LPBYTE)value.c_str(), (DWORD)(value.length() * sizeof(WCHAR)));
+  return RegSetValueExW(hKey, valueName.c_str(), 0, REG_SZ, (LPBYTE)value.c_str(), (DWORD)(value.length() * sizeof(WCHAR)));
 }
 
 // returns true if startup entry is set to this exe
 bool StartupIsSet()
 {
-	HKEY runKey = NULL;
-	std::wstring runKeyVal;
-	if (RegCreateKey(HKEY_CURRENT_USER, L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", &runKey) != ERROR_SUCCESS)
-	{
-		OutputDebugString(L"StartupIsSet: Failed to open Run key!\n");
-		runKey = NULL;
-		return false;
-	}
-	else
-	{
-		if (RegistryGetString(runKey, title, runKeyVal, L"") != ERROR_SUCCESS)
-		{
-			OutputDebugString(L"StartupIsSet: Failed to query startup entry!\n");
-			return false;
-		}
-	}
+  HKEY runKey = NULL;
+  std::wstring runKeyVal;
+  if (RegCreateKey(HKEY_CURRENT_USER, L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", &runKey) != ERROR_SUCCESS)
+  {
+    OutputDebugString(L"StartupIsSet: Failed to open Run key!\n");
+    runKey = NULL;
+    return false;
+  }
+  else
+  {
+    if (RegistryGetString(runKey, title, runKeyVal, L"") != ERROR_SUCCESS)
+    {
+      OutputDebugString(L"StartupIsSet: Failed to query startup entry!\n");
+      return false;
+    }
+  }
 
-	WCHAR buffer[512];
-	DWORD bufferSize = sizeof(buffer);
-	GetModuleFileName(GetModuleHandle(NULL), buffer, bufferSize);
+  WCHAR buffer[512];
+  DWORD bufferSize = sizeof(buffer);
+  GetModuleFileName(GetModuleHandle(NULL), buffer, bufferSize);
 
-	return runKeyVal == std::wstring(buffer);
+  return runKeyVal == std::wstring(buffer);
 }
 
 bool StartupCreateEntry()
 {
-	HKEY runKey = NULL;
-	std::wstring runKeyVal;
-	if (RegCreateKey(HKEY_CURRENT_USER, L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", &runKey) != ERROR_SUCCESS)
-	{
-		OutputDebugString(L"StartupCreateEntry: Failed to open Run key!\n");
-		runKey = NULL;
-		return false;
-	}
+  HKEY runKey = NULL;
+  std::wstring runKeyVal;
+  if (RegCreateKey(HKEY_CURRENT_USER, L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", &runKey) != ERROR_SUCCESS)
+  {
+    OutputDebugString(L"StartupCreateEntry: Failed to open Run key!\n");
+    runKey = NULL;
+    return false;
+  }
 
-	WCHAR buffer[512];
-	DWORD bufferSize = sizeof(buffer);
-	GetModuleFileName(GetModuleHandle(NULL), buffer, bufferSize);
+  WCHAR buffer[512];
+  DWORD bufferSize = sizeof(buffer);
+  GetModuleFileName(GetModuleHandle(NULL), buffer, bufferSize);
 
-	OutputDebugString(L"StartupCreateEntry: Setting startup entry to current exe...\n");
-	OutputDebugString(buffer);
+  OutputDebugString(L"StartupCreateEntry: Setting startup entry to current exe...\n");
+  OutputDebugString(buffer);
 
-	if (RegistrySetString(runKey, title, buffer) != ERROR_SUCCESS)
-	{
-		OutputDebugString(L"StartupCreateEntry: Failed to create startup entry!\n");
-		return false;
-	}
+  if (RegistrySetString(runKey, title, buffer) != ERROR_SUCCESS)
+  {
+    OutputDebugString(L"StartupCreateEntry: Failed to create startup entry!\n");
+    return false;
+  }
 
-	return true;
+  return true;
 }
 
 bool StartupDeleteEntry()
 {
-	HKEY runKey = NULL;
-	std::wstring runKeyVal;
-	if (RegCreateKey(HKEY_CURRENT_USER, L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", &runKey) != ERROR_SUCCESS)
-	{
-		OutputDebugString(L"StartupDeleteEntry: Failed to open Run key!\n");
-		runKey = NULL;
-		return false;
-	}
+  HKEY runKey = NULL;
+  std::wstring runKeyVal;
+  if (RegCreateKey(HKEY_CURRENT_USER, L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", &runKey) != ERROR_SUCCESS)
+  {
+    OutputDebugString(L"StartupDeleteEntry: Failed to open Run key!\n");
+    runKey = NULL;
+    return false;
+  }
 
-	return RegDeleteValue(runKey, title) == ERROR_SUCCESS;
+  return RegDeleteValue(runKey, title) == ERROR_SUCCESS;
 }
 #pragma endregion
 
@@ -118,86 +118,86 @@ NOTIFYICONDATA notifyIconData;
 
 void SysTrayInit()
 {
-	memset(&notifyIconData, 0, sizeof(NOTIFYICONDATA));
+  memset(&notifyIconData, 0, sizeof(NOTIFYICONDATA));
 
-	notifyIconData.cbSize = sizeof(NOTIFYICONDATA);
-	notifyIconData.hWnd = hwnd;
-	notifyIconData.uID = ID_TRAY_APP_ICON;
+  notifyIconData.cbSize = sizeof(NOTIFYICONDATA);
+  notifyIconData.hWnd = hwnd;
+  notifyIconData.uID = ID_TRAY_APP_ICON;
 
-	notifyIconData.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+  notifyIconData.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
 
-	notifyIconData.uCallbackMessage = WM_USER_TRAYICON;
-	notifyIconData.hIcon = LoadIcon(instance, MAKEINTRESOURCE(IDI_APPICON));
+  notifyIconData.uCallbackMessage = WM_USER_TRAYICON;
+  notifyIconData.hIcon = LoadIcon(instance, MAKEINTRESOURCE(IDI_APPICON));
 
-	wcscpy_s(notifyIconData.szTip, tray_text);
-	Shell_NotifyIcon(NIM_ADD, &notifyIconData);
+  wcscpy_s(notifyIconData.szTip, tray_text);
+  Shell_NotifyIcon(NIM_ADD, &notifyIconData);
 }
 
 void SysTrayShowContextMenu()
 {
-	POINT lpClickPoint;
-	GetCursorPos(&lpClickPoint);
+  POINT lpClickPoint;
+  GetCursorPos(&lpClickPoint);
 
-	HMENU hPopMenu = CreatePopupMenu();
-	InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING | MF_GRAYED, ID_TRAY_NAME, tray_text);
-	InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING | 
+  HMENU hPopMenu = CreatePopupMenu();
+  InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING | MF_GRAYED, ID_TRAY_NAME, tray_text);
+  InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING | 
     (StartupIsSet() ? MF_CHECKED : MF_UNCHECKED), ID_TRAY_STARTUP, L"Run on startup");
-	InsertMenu(hPopMenu, 0xFFFFFFFF, MF_SEPARATOR, ID_TRAY_SEP, L"SEP");
-	InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING, ID_TRAY_EXIT, L"Exit");
+  InsertMenu(hPopMenu, 0xFFFFFFFF, MF_SEPARATOR, ID_TRAY_SEP, L"SEP");
+  InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING, ID_TRAY_EXIT, L"Exit");
 
-	SetForegroundWindow(hwnd);
-	TrackPopupMenu(hPopMenu, TPM_LEFTALIGN | TPM_LEFTBUTTON | TPM_BOTTOMALIGN,
-		lpClickPoint.x, lpClickPoint.y, 0, hwnd, NULL);
+  SetForegroundWindow(hwnd);
+  TrackPopupMenu(hPopMenu, TPM_LEFTALIGN | TPM_LEFTBUTTON | TPM_BOTTOMALIGN,
+    lpClickPoint.x, lpClickPoint.y, 0, hwnd, NULL);
 }
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-	int wmId, lmId;
+  int wmId, lmId;
 
   static UINT taskbarCreatedMsg = 0;
 
-	switch (message)
-	{
+  switch (message)
+  {
   case WM_CREATE:
     // register the "TaskbarCreated" window message, gets used if the systray icon needs to be recreated (eg explorer.exe crashed)
     taskbarCreatedMsg = RegisterWindowMessageW(TEXT("TaskbarCreated"));
     break;
-	case WM_COMMAND:
-		wmId = LOWORD(wParam);
-		switch (wmId)
-		{
-		case ID_TRAY_EXIT:
-			DestroyWindow(hWnd);
-			break;
-		case ID_TRAY_STARTUP:
-			if (StartupIsSet())
-				StartupDeleteEntry();
-			else
-				StartupCreateEntry();
-			break;
-		default:
-			return DefWindowProc(hWnd, message, wParam, lParam);
-		}
-		break;
-	case WM_DESTROY:
+  case WM_COMMAND:
+    wmId = LOWORD(wParam);
+    switch (wmId)
+    {
+    case ID_TRAY_EXIT:
+      DestroyWindow(hWnd);
+      break;
+    case ID_TRAY_STARTUP:
+      if (StartupIsSet())
+        StartupDeleteEntry();
+      else
+        StartupCreateEntry();
+      break;
+    default:
+      return DefWindowProc(hWnd, message, wParam, lParam);
+    }
+    break;
+  case WM_DESTROY:
     usb_end = true; // signal threads to stop
-		PostQuitMessage(0);
-		break;
-	case WM_USER_TRAYICON:
-		lmId = LOWORD(lParam);
-		switch (lmId)
-		{
-		case WM_RBUTTONDOWN:
-		case WM_LBUTTONDOWN:
-			SysTrayShowContextMenu();
-			break;
-		}
-		break;
-	default:
+    PostQuitMessage(0);
+    break;
+  case WM_USER_TRAYICON:
+    lmId = LOWORD(lParam);
+    switch (lmId)
+    {
+    case WM_RBUTTONDOWN:
+    case WM_LBUTTONDOWN:
+      SysTrayShowContextMenu();
+      break;
+    }
+    break;
+  default:
     if (message == taskbarCreatedMsg)
       SysTrayInit(); // reinit systray icon
     break;
-	}
+  }
 
   return DefWindowProc(hWnd, message, wParam, lParam);
 }
@@ -282,12 +282,12 @@ std::thread check_thread;
 std::thread update_thread;
 
 int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
-	_In_opt_ HINSTANCE hPrevInstance,
-	_In_ LPTSTR    lpCmdLine,
-	_In_ int       nCmdShow)
+  _In_opt_ HINSTANCE hPrevInstance,
+  _In_ LPTSTR    lpCmdLine,
+  _In_ int       nCmdShow)
 {
-	instance = hInstance;
-	wcscpy_s(title, L"Xb2XInput");
+  instance = hInstance;
+  wcscpy_s(title, L"Xb2XInput");
   swprintf_s(tray_text, L"Xb2XInput - waiting for controller");
 
   if (!XboxController::Initialize(title))
@@ -302,41 +302,41 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
   update_thread.detach();
 
   // Create window for systray icon
-	WNDCLASSEX wcex;
-	wcex.cbSize = sizeof(WNDCLASSEX);
-	wcex.style = CS_HREDRAW | CS_VREDRAW;
-	wcex.lpfnWndProc = WndProc;
-	wcex.cbClsExtra = 0;
-	wcex.cbWndExtra = 0;
-	wcex.hInstance = instance;
-	wcex.hIcon = LoadIcon(instance, MAKEINTRESOURCE(IDI_APPICON));
-	wcex.hCursor = LoadCursor(NULL, IDC_ARROW);
-	wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
-	wcex.lpszMenuName = title;
-	wcex.lpszClassName = title;
-	wcex.hIconSm = LoadIcon(instance, MAKEINTRESOURCE(IDI_APPICON));
+  WNDCLASSEX wcex;
+  wcex.cbSize = sizeof(WNDCLASSEX);
+  wcex.style = CS_HREDRAW | CS_VREDRAW;
+  wcex.lpfnWndProc = WndProc;
+  wcex.cbClsExtra = 0;
+  wcex.cbWndExtra = 0;
+  wcex.hInstance = instance;
+  wcex.hIcon = LoadIcon(instance, MAKEINTRESOURCE(IDI_APPICON));
+  wcex.hCursor = LoadCursor(NULL, IDC_ARROW);
+  wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+  wcex.lpszMenuName = title;
+  wcex.lpszClassName = title;
+  wcex.hIconSm = LoadIcon(instance, MAKEINTRESOURCE(IDI_APPICON));
 
-	RegisterClassEx(&wcex);
+  RegisterClassEx(&wcex);
 
-	hwnd = CreateWindow(title, title, WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, NULL, NULL, instance, NULL);
+  hwnd = CreateWindow(title, title, WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, NULL, NULL, instance, NULL);
 
-	if (!hwnd)
-		return FALSE;
+  if (!hwnd)
+    return FALSE;
 
   // Init systray icon
   SysTrayInit();
 
   // Enter window loop
-	MSG msg;
-	while (GetMessage(&msg, NULL, 0, 0))
-	{
-		TranslateMessage(&msg);
-		DispatchMessage(&msg);
-	}
+  MSG msg;
+  while (GetMessage(&msg, NULL, 0, 0))
+  {
+    TranslateMessage(&msg);
+    DispatchMessage(&msg);
+  }
 
   // Window loop is over, delete controllers and systray icon
   XboxController::Close();
-	Shell_NotifyIcon(NIM_DELETE, &notifyIconData);
+  Shell_NotifyIcon(NIM_DELETE, &notifyIconData);
 
-	return (int)msg.wParam;
+  return (int)msg.wParam;
 }

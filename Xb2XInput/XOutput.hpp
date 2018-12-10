@@ -66,7 +66,7 @@ namespace XOutput {
   ///                             otherwise it is set to 0x00. </param>
   /// <param name="bLargeMotor">  The intensity of the large motor (0-255). </param>
   /// <param name="bSmallMotor">  The intensity of the small motor (0-255). </param>
-  /// <param name="bLed">			The LED that represent this device (0-3). </param>
+  /// <param name="bLed">         The LED that represent this device (0-3). </param>
   ///
   /// <returns>
   /// If the function succeeds, the return value is ERROR_SUCCESS.
