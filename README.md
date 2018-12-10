@@ -27,7 +27,7 @@ Download the latest compiled version of Xb2XInput from the [releases page](https
 
 **To make use of Xb2XInput you'll need the ScpVBus driver installed, and your controller will need to be setup to use the "WinUSB" driver.**
 
-The included "Install ScpVBus.bat" file will install the ScpVBus driver for you, just extract the entire zip somewhere and run that as administrator (right-click -> Run as administrator)
+The included "install driver.bat" file will install the ScpVBus driver for you, just extract the entire zip somewhere and run that as administrator (right-click -> Run as administrator), make sure to run it from the correct folder for your OS (x86 for 32-bit machines, x64 for 64-bit)
 
 Setting up the controller for WinUSB is a little more complicated:
 1. Make sure the controller is plugged in.
@@ -71,7 +71,7 @@ Supported controllers
 Xb2XInput should support all the controllers that XBCD has support for, minus any steering wheels/DDR pads.  
 (no wheel/DDR support since I don't have any and I'm not sure how they translate to XInput, if anyone has one and can connect it to their PC I'd be happy to try debugging it with you though, just make an issue on the issue tracker!)
 
-For a list of all supported controllers see the top section of [XboxController.cpp](https://raw.githubusercontent.com/emoose/Xb2XInput/master/Xb2XInput/XboxController.cpp)
+For a list of all supported controllers see the top section of [XboxController.cpp](https://github.com/emoose/Xb2XInput/blob/master/Xb2XInput/XboxController.cpp)
 
 While a controller might be supported that doesn't mean it's been tested or works, the majority should hopefully all work without problem, but there could be some edge cases.
 
@@ -97,4 +97,4 @@ Todo
 
 License
 ---
-"install driver.bat" and XOutput.cpp/XOutput.hpp is taken from [ProconXInput](https://github.com/MTCKC/ProconXInput/) which is MIT (Expat) licensed, rest of the code is licensed under GPLv3.
+"install/uninstall driver.bat" and XOutput.cpp/XOutput.hpp is taken from [ProconXInput](https://github.com/MTCKC/ProconXInput/) which is MIT (Expat) licensed, rest of the code is licensed under GPLv3.
