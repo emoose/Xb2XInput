@@ -6,7 +6,7 @@ While there's already solutions such as [XBCD](https://www.s-config.com/xbcd-ori
 With those my only solution was to edit the driver files, breaking any signature on them and forcing me to run Windows with unsigned driver support enabled...
 
 Keeping unsigned drivers enabled is a bit too risky for me though, and I also found those drivers have some issues of their own too (a controller driver shouldn't be able to cause BSoDs!).  
-Both of those only support DirectInput too, requiring another third-party app to translate that to XInput, with the best solution I found needing the app to be installed per-game...
+Both of those only support DirectInput too, requiring another third-party app to translate that to XInput (with the best solution I found needing the app to be installed per-game...)
 
 I decided to try looking into a user-mode solution instead, something with a smaller chance of taking my whole system down at will, and ideally something that supports both Xbox OG controllers and XInput.  
 Sadly there doesn't seem to be much work done on something like that for Windows, but luckily others have worked on user-mode solutions for other kinds of controllers, which wasn't too hard to adapt to the Xbox OG controllers.  
@@ -44,7 +44,8 @@ After both drivers are setup you should restart your computer to make sure they 
 
 Usage
 ---
-With the drivers setup, just extract the Xb2XInput-x.x.zip file somewhere (making sure the libusb-1.0 and XOutput1_1 DLLs are next to Xb2XInput.exe!)  
+With the drivers setup, just extract the Xb2XInput-x.x.zip file somewhere (making sure the libusb-1.0 and XOutput1_1 DLLs are next to Xb2XInput.exe!)
+
 Now run the Xb2XInput.exe and an icon for it should appear in your system tray.  
 
 ##### Connecting a controller
@@ -89,11 +90,17 @@ Xbox icon was taken from starvingartist's [Antiseptic Videogame Systems icon set
 
 (No thanks to MS for requiring 3rd-party tools to use an OG controller, but their signed WinUSB driver is nice I guess)
 
+Contributing
+---
+Contributions & improvements would be gladly accepted, ideally you should make any changes in a new branch seperate to master, and then create a pull request from that branch.
+
+This way if I update any code while you're working, you should be able to merge any changes in pretty easily.
+
 Todo
 ---
 - Allow setting deadzones / calibrating the analog sticks
 - Make a script for the WinUSB driver installation?
-- Test multiple Xbox OG controllers (waiting for one to be delivered as we speak)
+- Test multiple Xbox OG controllers at once (waiting for one to be delivered as we speak)
 
 License
 ---
