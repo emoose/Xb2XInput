@@ -12,7 +12,7 @@ I decided to try looking into a user-mode solution instead, something with a sma
 Sadly there doesn't seem to be much work done on something like that for Windows, but luckily others have worked on user-mode solutions for other kinds of controllers, which wasn't too hard to adapt to the Xbox OG controllers.  
 (major thanks to MTCKC for their [ProconXInput project](https://github.com/MTCKC/ProconXInput/)!)
 
-While it's not fully user-mode as it needs the ScpVBus driver to be installed, that driver does have its advantages over the other Xbox dedicated ones:
+While it's not fully user-mode as it needs the ScpVBus driver to be installed, that driver does have its advantages over the other ones:
 
 - Fully open source
 - Used & tested by tons of people
@@ -25,22 +25,13 @@ Setup
 ---
 Download the latest compiled version of Xb2XInput from the [releases page](https://github.com/emoose/Xb2XInput/releases).
 
-**To make use of Xb2XInput you'll need the ScpVBus driver installed, and your controller will need to be setup to use the "WinUSB" driver.**
+To make use of Xb2XInput you'll need the ScpVBus driver installed, and your controller will need to be setup to use the "WinUSB" driver. The included "install driver.bat" will take care of setting up these drivers for you.
 
-The included "install driver.bat" file will install the ScpVBus driver for you, just extract the entire zip somewhere and run that as administrator (right-click -> Run as administrator), make sure to run it from the correct folder for your OS (x86 for 32-bit machines, x64 for 64-bit)
+Simply extract the entire zip somewhere, navigate to your OS's directory (x86 for 32-bit, x64 for 64-bit) and then run the "install driver.bat" as administrator (right-click -> Run as administrator).
 
-Setting up the controller for WinUSB is a little more complicated:
-1. Make sure the controller is plugged in.
-2. Open Device Manager and locate the device.
-3. Right-click the device and select "Update driver" from the context menu.
-4. In the wizard, select "Browse my computer for driver software"
-5. Select "Let me pick from a list of device drivers on my computer"
-6. From the list of device classes, select "Universal Serial Bus devices"
-7. The wizard should now display "WinUsb Device" on the left, click on it, and then choose "WinUsb Device" from the list on the right.
-8. A warning might appear about Windows not recommending this driver etc, click "Yes" to continue installing the driver.
-9. If all went well it should say that the "WinUsb Device" was installed successfully.
+Once the batch file is completed you should restart your computer to make sure they take effect.
 
-After both drivers are setup you should restart your computer to make sure they take effect.
+To uninstall the drivers run the "uninstall driver.bat" as administrator, to remove the WinUSB driver you'll have to uninstall the driver from your gamepad in device manager (make sure "Delete the driver software for this device" is checked)
 
 Usage
 ---
@@ -55,7 +46,7 @@ Now run the Xb2XInput.exe and an icon for it should appear in your system tray.
 - Similarly, unplugging a controller will show a notification about the controller being disconnected.
 
 ##### Viewing status
-- To view the status of Xb2XInput just hover over the icon, if only one controller is being translated it'll list details about that controller, otherwise if there's more than 1 it'll give the number of controllers connected.
+- To view the status of Xb2XInput just hover over the icon, any details about connected devices should be shown in the tooltip (if tooltip doesn't appear, click the icon instead)
 
 ##### Run on startup
 - To run Xb2XInput on startup just click the icon and choose the "Run on startup" option, a registry entry will be made for Xb2XInput to be ran from it's current path.  
@@ -88,6 +79,8 @@ Big thanks to the [libusb](https://libusb.info/) developers too.
 
 Xbox icon was taken from starvingartist's [Antiseptic Videogame Systems icon set](https://www.deviantart.com/starvingartist/art/Antiseptic-Videogame-Systems-23217105)
 
+wdi-simple.exe taken from the pbatard's [libwdi project](https://github.com/pbatard/libwdi)
+
 (No thanks to MS for requiring 3rd-party tools to use an OG controller, but their signed WinUSB driver is nice I guess)
 
 Contributing
@@ -104,4 +97,8 @@ Todo
 
 License
 ---
-"install/uninstall driver.bat" and XOutput.cpp/XOutput.hpp is taken from [ProconXInput](https://github.com/MTCKC/ProconXInput/) which is MIT (Expat) licensed, rest of the code is licensed under GPLv3.
+"install/uninstall driver.bat" and XOutput.cpp/XOutput.hpp is taken from [ProconXInput](https://github.com/MTCKC/ProconXInput/) which is MIT (Expat) licensed
+
+wdi-simple taken from [libwdi project](https://github.com/pbatard/libwdi) which is LGPL 3 licensed.
+
+The rest of the code is licensed under GPLv3.
