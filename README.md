@@ -25,13 +25,13 @@ Setup
 ---
 Download the latest compiled version of Xb2XInput from the [releases page](https://github.com/emoose/Xb2XInput/releases).
 
-To make use of Xb2XInput you'll need the ScpVBus driver installed, and your controller will need to be setup to use the "WinUSB" driver. The included "install driver.bat" will take care of setting up these drivers for you.
+To make use of Xb2XInput you'll need the ScpVBus driver installed, and your controller will need to be setup to use the "WinUSB" driver. The included "install drivers.bat" will take care of setting up these drivers for you.
 
-Simply extract the entire zip somewhere, navigate to your OS's directory (x86 for 32-bit, x64 for 64-bit) and then run the "install driver.bat" as administrator (right-click -> Run as administrator).
+Simply extract the entire zip somewhere, navigate to your OS's directory (x86 for 32-bit, x64 for 64-bit) and then run the "install drivers.bat" as administrator (right-click -> Run as administrator).
 
 Once the batch file is completed you should restart your computer to make sure they take effect.
 
-To uninstall the drivers run the "uninstall driver.bat" as administrator, to remove the WinUSB driver you'll have to uninstall the driver from your gamepad in device manager (make sure "Delete the driver software for this device" is checked)
+To uninstall the drivers run the "uninstall drivers.bat" as administrator, to remove the WinUSB driver you'll have to uninstall the driver from your gamepad in device manager (make sure "Delete the driver software for this device" is checked)
 
 Usage
 ---
@@ -39,24 +39,24 @@ With the drivers setup, just extract the Xb2XInput-x.x.zip file somewhere (makin
 
 Now run the Xb2XInput.exe and an icon for it should appear in your system tray.  
 
-##### Connecting a controller
-- To connect a controller just plug it into your system, after a few seconds Xb2XInput should detect it and a notification will appear once it starts translating it over to XInput.  
+#### Connecting a controller
+To connect a controller just plug it into your system, after a few seconds Xb2XInput should detect it and a notification will appear once it starts translating it over to XInput.  
 
-##### Disconnecting a controller
-- Similarly, unplugging a controller will show a notification about the controller being disconnected.
+#### Disconnecting a controller
+Similarly, unplugging a controller will show a notification about the controller being disconnected.
 
-##### Viewing status
-- To view the status of Xb2XInput just hover over the icon, any details about connected devices should be shown in the tooltip (if tooltip doesn't appear, click the icon instead)
+#### Viewing status
+To view the status of Xb2XInput just hover over the icon, any details about connected devices should be shown in the tooltip (if tooltip doesn't appear, click the icon instead)
 
-##### Run on startup
-- To run Xb2XInput on startup just click the icon and choose the "Run on startup" option, a registry entry will be made for Xb2XInput to be ran from it's current path.  
+#### Run on startup
+To run Xb2XInput on startup just click the icon and choose the "Run on startup" option, a registry entry will be made for Xb2XInput to be ran from it's current path.  
 If you move the Xb2XInput exe (and associated dlls) make sure to choose the "Run on startup" option again to update the startup path.
 
-##### Exit
-- To exit the application just click the icon and choose Exit, any connected gamepads will stop translating to XInput.
+#### Exit
+To exit the application just click the icon and choose Exit, any connected gamepads will stop translating to XInput.
 
-##### Support
-- If you have any problems with Xb2XInput please don't hesitate to make an issue on the issue tracker, just be sure to include the hardware ID of your device (can be found in Device Manager -> double-click device -> Details -> Hardware IDs, should look something like "USB\VID_0738&PID_4522&REV_0384")
+#### Support
+If you have any problems with Xb2XInput please don't hesitate to make an issue on the issue tracker, just be sure to include the hardware ID of your device (can be found in Device Manager -> double-click device -> Details -> Hardware IDs, should look something like "USB\VID_0738&PID_4522&REV_0384")
 
 Supported controllers
 ---
@@ -92,7 +92,6 @@ This way if I update any code while you're working, you should be able to merge 
 Todo
 ---
 - Allow setting deadzones / calibrating the analog sticks
-- Make a script for the WinUSB driver installation?
 - Test multiple Xbox OG controllers at once (waiting for one to be delivered as we speak)
 
 License
