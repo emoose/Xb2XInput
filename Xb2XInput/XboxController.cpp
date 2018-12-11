@@ -47,6 +47,16 @@ std::vector<std::pair<int, int>> xbox_devices =
   //{0xFFFF, 0xFFFF}, // "Chinese-made Xbox Controller" (disabled since ID seems sketchy)
 };
 
+void dbgprintf(const char* format, ...)
+{
+  static char buffer[256];
+  va_list args;
+  va_start(args, format);
+  vsprintf_s(buffer, format, args);
+  OutputDebugStringA(buffer);
+  va_end(args);
+}
+
 std::vector<XboxController> controllers_;
 std::mutex controller_mutex_;
 std::vector<std::function<void(const XboxController& device, bool added)>> device_change_callbacks_;
@@ -86,6 +96,10 @@ libusb_device_handle* XboxController::OpenDevice()
 
 bool XboxController::Initialize(WCHAR* app_title)
 {
+  static bool inited = false;
+  if (inited)
+    return true;
+
   // Init libusb & XOutput
   auto ret = libusb_init(NULL);
   if (ret < 0)
@@ -98,7 +112,9 @@ bool XboxController::Initialize(WCHAR* app_title)
     XOutput::XOutputInitialize();
   }
   catch (XOutput::XOutputError &e) {
-    MessageBox(NULL, L"Failed to init XOutput, make sure XOutput1_1.dll is located next to the exe!", app_title, MB_OK);
+    wchar_t buf[256];
+    swprintf_s(buf, L"Failed to init XOutput (error: %S)\r\nMake sure XOutput1_1.dll is located next to the exe!", e.what());
+    MessageBox(NULL, buf, app_title, MB_OK);
     return false;
   }
 
@@ -113,11 +129,10 @@ bool XboxController::Initialize(WCHAR* app_title)
   for (int i = 0; i < 4; i++)
   {
     XOutput::XOutputUnPlug(i);
+    ports_[i] = false;
   }
 
-  for (int i = 0; i < 4; i++)
-    ports_[i] = false;
-
+  inited = true;
   return true;
 }
 
@@ -218,52 +233,40 @@ bool XboxController::update()
     HID_GET_REPORT, (HID_REPORT_TYPE_INPUT << 8) | 0x00, 0, (unsigned char*)&input_prev_, sizeof(XboxInputReport), 1000);
 
   if (ret < 0)
+  {
+    dbgprintf(__FUNCTION__ ": libusb transfer failed (code %d)", ret);
     return false;
+  }
+
+  if (input_prev_.bSize != sizeof(XboxInputReport))
+  {
+    dbgprintf(__FUNCTION__ ": controller returned invalid report size %d (expected %d)", input_prev_.bSize, sizeof(XboxInputReport));
+    return false;
+  }
 
   memset(&gamepad_, 0, sizeof(XINPUT_GAMEPAD));
 
-  if (input_prev_.btn_a != 0)
-    gamepad_.wButtons |= XINPUT_GAMEPAD_A;
-  if (input_prev_.btn_b != 0)
-    gamepad_.wButtons |= XINPUT_GAMEPAD_B;
-  if (input_prev_.btn_x != 0)
-    gamepad_.wButtons |= XINPUT_GAMEPAD_X;
-  if (input_prev_.btn_y != 0)
-    gamepad_.wButtons |= XINPUT_GAMEPAD_Y;
+  // Copy over digital buttons
+  gamepad_.wButtons = input_prev_.Gamepad.wButtons;
 
-  if ((input_prev_.digital_btns & (uint16_t)XboxButton::Start) != 0)
-    gamepad_.wButtons |= XINPUT_GAMEPAD_START;
-  if ((input_prev_.digital_btns & (uint16_t)XboxButton::Back) != 0)
-    gamepad_.wButtons |= XINPUT_GAMEPAD_BACK;
+  // Convert analog buttons to digital
+  gamepad_.wButtons |= input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_A] ? XINPUT_GAMEPAD_A : 0;
+  gamepad_.wButtons |= input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_B] ? XINPUT_GAMEPAD_B : 0;
+  gamepad_.wButtons |= input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_X] ? XINPUT_GAMEPAD_X : 0;
+  gamepad_.wButtons |= input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_Y] ? XINPUT_GAMEPAD_Y : 0;
+  gamepad_.wButtons |= input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_WHITE] ? XINPUT_GAMEPAD_LEFT_SHOULDER : 0;
+  gamepad_.wButtons |= input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_BLACK] ? XINPUT_GAMEPAD_RIGHT_SHOULDER : 0;
 
-  if (input_prev_.btn_white != 0)
-    gamepad_.wButtons |= XINPUT_GAMEPAD_LEFT_SHOULDER;
-  if (input_prev_.btn_black != 0)
-    gamepad_.wButtons |= XINPUT_GAMEPAD_RIGHT_SHOULDER;
+  // Copy over remaining analog values
+  gamepad_.bLeftTrigger = input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_LEFT_TRIGGER];
+  gamepad_.bRightTrigger = input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_RIGHT_TRIGGER];
 
-  if ((input_prev_.digital_btns & (uint16_t)XboxButton::LS) != 0)
-    gamepad_.wButtons |= XINPUT_GAMEPAD_LEFT_THUMB;
+  gamepad_.sThumbLX = input_prev_.Gamepad.sThumbLX;
+  gamepad_.sThumbLY = input_prev_.Gamepad.sThumbLY;
+  gamepad_.sThumbRX = input_prev_.Gamepad.sThumbRX;
+  gamepad_.sThumbRY = input_prev_.Gamepad.sThumbRY;
 
-  if ((input_prev_.digital_btns & (uint16_t)XboxButton::RS) != 0)
-    gamepad_.wButtons |= XINPUT_GAMEPAD_RIGHT_THUMB;
-
-  if ((input_prev_.digital_btns & (uint16_t)XboxButton::DpadUp) != 0)
-    gamepad_.wButtons |= XINPUT_GAMEPAD_DPAD_UP;
-  if ((input_prev_.digital_btns & (uint16_t)XboxButton::DpadDown) != 0)
-    gamepad_.wButtons |= XINPUT_GAMEPAD_DPAD_DOWN;
-  if ((input_prev_.digital_btns & (uint16_t)XboxButton::DpadLeft) != 0)
-    gamepad_.wButtons |= XINPUT_GAMEPAD_DPAD_LEFT;
-  if ((input_prev_.digital_btns & (uint16_t)XboxButton::DpadRight) != 0)
-    gamepad_.wButtons |= XINPUT_GAMEPAD_DPAD_RIGHT;
-
-  gamepad_.bLeftTrigger = input_prev_.trigger_left;
-  gamepad_.bRightTrigger = input_prev_.trigger_right;
-
-  gamepad_.sThumbLX = input_prev_.stick_left_x;
-  gamepad_.sThumbLY = input_prev_.stick_left_y;
-  gamepad_.sThumbRX = input_prev_.stick_right_x;
-  gamepad_.sThumbRY = input_prev_.stick_right_y;
-
+  // Write gamepad to virtual XInput device
   XOutput::XOutputSetState(0, &gamepad_);
 
   if (closing_)
@@ -285,9 +288,9 @@ bool XboxController::update()
   if (!ret && vibrate != 0)
   {
     memset(&output_prev_, 0, sizeof(XboxOutputReport));
-    output_prev_.report_len = sizeof(XboxOutputReport);
-    output_prev_.left = big_motor;
-    output_prev_.right = small_motor;
+    output_prev_.bSize = sizeof(XboxOutputReport);
+    output_prev_.Rumble.wLeftMotorSpeed = _byteswap_ushort(big_motor); // why do these need to be byteswapped???
+    output_prev_.Rumble.wRightMotorSpeed = _byteswap_ushort(small_motor);
 
     libusb_control_transfer(usb_handle_, LIBUSB_ENDPOINT_OUT | LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE,
       HID_SET_REPORT, (HID_REPORT_TYPE_OUTPUT << 8) | 0x00, 0, (unsigned char*)&output_prev_, sizeof(XboxOutputReport), 1000);

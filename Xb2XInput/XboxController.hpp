@@ -6,45 +6,60 @@
 #include "XOutput.hpp"
 #include <libusb.h>
 
+
+// original xbox XINPUT definitions from https://github.com/paralin/hl2sdk/blob/master/common/xbox/xboxstubs.h
+
+// digital button bitmasks
+#define OGXINPUT_GAMEPAD_DPAD_UP           0x0001
+#define OGXINPUT_GAMEPAD_DPAD_DOWN         0x0002
+#define OGXINPUT_GAMEPAD_DPAD_LEFT         0x0004
+#define OGXINPUT_GAMEPAD_DPAD_RIGHT        0x0008
+#define OGXINPUT_GAMEPAD_START             0x0010
+#define OGXINPUT_GAMEPAD_BACK              0x0020
+#define OGXINPUT_GAMEPAD_LEFT_THUMB        0x0040
+#define OGXINPUT_GAMEPAD_RIGHT_THUMB       0x0080
+
+// analog button indexes
+#define OGXINPUT_GAMEPAD_A                0
+#define OGXINPUT_GAMEPAD_B                1
+#define OGXINPUT_GAMEPAD_X                2
+#define OGXINPUT_GAMEPAD_Y                3
+#define OGXINPUT_GAMEPAD_BLACK            4
+#define OGXINPUT_GAMEPAD_WHITE            5
+#define OGXINPUT_GAMEPAD_LEFT_TRIGGER     6
+#define OGXINPUT_GAMEPAD_RIGHT_TRIGGER    7
+
 #pragma pack(push, 1)
+typedef struct _OGXINPUT_RUMBLE
+{
+  WORD   wLeftMotorSpeed;
+  WORD   wRightMotorSpeed;
+} OGXINPUT_RUMBLE, *POGXINPUT_RUMBLE;
+
+typedef struct _OGXINPUT_GAMEPAD
+{
+  WORD    wButtons;
+  BYTE    bAnalogButtons[8];
+  short   sThumbLX;
+  short   sThumbLY;
+  short   sThumbRX;
+  short   sThumbRY;
+} OGXINPUT_GAMEPAD, *POGXINPUT_GAMEPAD;
+
 struct XboxInputReport {
-  /* 0x00 */ uint8_t unused;
-  /* 0x01 */ uint8_t report_len;
-  /* 0x02 */ uint16_t digital_btns;
-  /* 0x04 */ uint8_t btn_a;
-  /* 0x05 */ uint8_t btn_b;
-  /* 0x06 */ uint8_t btn_x;
-  /* 0x07 */ uint8_t btn_y;
-  /* 0x08 */ uint8_t btn_black;
-  /* 0x09 */ uint8_t btn_white;
-  /* 0x0A */ uint8_t trigger_left;
-  /* 0x0B */ uint8_t trigger_right;
-  /* 0x0C */ int16_t stick_left_x;
-  /* 0x0E */ int16_t stick_left_y;
-  /* 0x10 */ int16_t stick_right_x;
-  /* 0x12 */ int16_t stick_right_y;
+  BYTE bReportId;
+  BYTE bSize;
+
+  OGXINPUT_GAMEPAD Gamepad;
 };
 
 struct XboxOutputReport {
-  uint8_t unk_0;
-  uint8_t report_len;
-  uint8_t unk_2;
-  uint8_t left;
-  uint8_t unk_4;
-  uint8_t right;
+  BYTE bReportId;
+  BYTE bSize;
+
+  OGXINPUT_RUMBLE Rumble;
 };
 #pragma pack(pop)
-
-enum class XboxButton {
-  DpadUp = 1,
-  DpadDown = 2,
-  DpadLeft = 4,
-  DpadRight = 8,
-  Start = 0x10,
-  Back = 0x20,
-  LS = 0x40,
-  RS = 0x80
-};
 
 #define HID_GET_REPORT                0x01
 #define HID_SET_REPORT                0x09
