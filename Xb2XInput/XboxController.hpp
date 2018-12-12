@@ -66,6 +66,7 @@ struct XboxOutputReport {
 class XboxController
 {
   int port_;
+  std::vector<uint8_t*> usb_ports_;
   bool active_ = false;
   libusb_device_handle* usb_handle_ = nullptr;
   int usb_product_ = 0;
@@ -83,7 +84,7 @@ class XboxController
 
   bool update();
 public:
-  XboxController(libusb_device_handle* handle, int port);
+  XboxController(libusb_device_handle* handle, int port, uint8_t* usb_ports, int num_ports);
   ~XboxController();
   int GetPortNum() const { return port_; }
   int GetProductId() const { return usb_product_; }

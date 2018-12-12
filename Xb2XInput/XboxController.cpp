@@ -67,33 +67,65 @@ bool ports_[4];
 libusb_device_handle* XboxController::OpenDevice()
 {
   libusb_device_handle* ret = nullptr;
-  for (auto device : xbox_devices)
+  libusb_device **devs;
+  libusb_device_descriptor desc;
+  uint8_t usb_ports[32];
+
+  auto num_devices = libusb_get_device_list(NULL, &devs);
+  for (int i = 0; i < num_devices; i++)
   {
-    ret = libusb_open_device_with_vid_pid(NULL, device.first, device.second);
-    if (!ret)
+    libusb_get_device_descriptor(devs[i], &desc);
+
+    bool found = false;
+    for (auto device : xbox_devices)
+    {
+      if (desc.idVendor == device.first && desc.idProduct == device.second)
+      {
+        found = true;
+        break;
+      }
+    }
+    if (!found)
       continue;
 
-    int portNum = 4;
+    // check if we're already handling this device
+    // (have to check USB port info since libusb_claim_interface doesn't seem to work...)
+    bool exists = false;
+    int num_ports = libusb_get_port_numbers(devs[i], (uint8_t*)&usb_ports, 32);
+    for (auto& controller : controllers_)
+    {
+      auto& cnt_ports = controller.usb_ports_;
+      if (cnt_ports.size() == num_ports && !memcmp(cnt_ports.data(), &usb_ports, cnt_ports.size()))
+      {
+        exists = true;
+        break;
+      }
+    }
+    if (exists)
+      continue;
+
+    int port_num = 4;
     for (int i = 0; i < 4; i++)
     {
       if (!ports_[i])
       {
-        portNum = i;
+        port_num = i;
         ports_[i] = true;
         break;
       }
     }
 
+    auto controller = XboxController(ret, port_num, (uint8_t*)&usb_ports, num_ports);
     std::lock_guard<std::mutex> guard(controller_mutex_);
 
-    auto controller = XboxController(ret, portNum);
     controllers_.push_back(controller);
 
     USBDeviceChanged(controller, true);
 
     return ret;
   }
-  return nullptr;
+
+  return ret;
 }
 
 bool XboxController::Initialize(WCHAR* app_title)
@@ -143,7 +175,13 @@ void XboxController::UpdateAll()
     {
       USBDeviceChanged(*iter, false);
 
-      int port = iter->GetPortNum();
+      int port = iter->port_;
+      auto handle = iter->usb_handle_;
+
+      libusb_close(handle);
+
+      XOutput::XOutputUnPlug(port);
+
       iter = controllers_.erase(iter);
       ports_[port] = false;
     }
@@ -170,9 +208,12 @@ const std::vector<XboxController>& XboxController::GetControllers()
   return controllers_;
 }
 
-XboxController::XboxController(libusb_device_handle* handle, int port) : usb_handle_(handle), port_(port) {
+XboxController::XboxController(libusb_device_handle* handle, int port, uint8_t* usb_ports, int num_ports) : usb_handle_(handle), port_(port) {
   usb_productname_[0] = 0;
   usb_vendorname_[0] = 0;
+
+  usb_ports_.resize(num_ports);
+  memcpy(usb_ports_.data(), usb_ports, num_ports);
 
   // try getting USB product info
   auto* dev = libusb_get_device(handle);
@@ -191,7 +232,6 @@ XboxController::XboxController(libusb_device_handle* handle, int port) : usb_han
 
 XboxController::~XboxController()
 {
-  XOutput::XOutputUnPlug(port_);
   closing_ = true;
   active_ = false;
 }
