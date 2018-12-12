@@ -1,6 +1,7 @@
 #include "stdafx.hpp"
 #include "XboxController.hpp"
 #include <vector>
+#include <mutex>
 
 std::vector<std::pair<int, int>> xbox_devices =
 {
@@ -47,6 +48,8 @@ std::vector<std::pair<int, int>> xbox_devices =
   //{0xFFFF, 0xFFFF}, // "Chinese-made Xbox Controller" (disabled since ID seems sketchy)
 };
 
+void USBDeviceChanged(const XboxController& controller, bool added); // from Xb2XInput.cpp
+
 void dbgprintf(const char* format, ...)
 {
   static char buffer[256];
@@ -59,7 +62,6 @@ void dbgprintf(const char* format, ...)
 
 std::vector<XboxController> controllers_;
 std::mutex controller_mutex_;
-std::vector<std::function<void(const XboxController& device, bool added)>> device_change_callbacks_;
 bool ports_[4];
 
 libusb_device_handle* XboxController::OpenDevice()
@@ -87,7 +89,7 @@ libusb_device_handle* XboxController::OpenDevice()
     auto controller = XboxController(ret, portNum);
     controllers_.push_back(controller);
 
-    deviceChanged(controller, true);
+    USBDeviceChanged(controller, true);
 
     return ret;
   }
@@ -125,20 +127,10 @@ bool XboxController::Initialize(WCHAR* app_title)
   }
 
   // Unplug any existing XOutput devices
-  XOutput::XOutputUnPlugAll();
-  for (int i = 0; i < 4; i++)
-  {
-    XOutput::XOutputUnPlug(i);
-    ports_[i] = false;
-  }
+  Close();
 
   inited = true;
   return true;
-}
-
-void XboxController::OnDeviceChanged(std::function<void(const XboxController& device, bool added)> callback)
-{
-  device_change_callbacks_.push_back(callback);
 }
 
 void XboxController::UpdateAll()
@@ -149,7 +141,7 @@ void XboxController::UpdateAll()
   {
     if (!iter->update())
     {
-      deviceChanged(*iter, false);
+      USBDeviceChanged(*iter, false);
 
       int port = iter->GetPortNum();
       iter = controllers_.erase(iter);
@@ -164,15 +156,16 @@ void XboxController::Close()
 {
   std::lock_guard<std::mutex> guard(controller_mutex_);
   controllers_.clear();
+
+  XOutput::XOutputUnPlugAll();
+  for (int i = 0; i < 4; i++)
+  {
+    XOutput::XOutputUnPlug(i);
+    ports_[i] = false;
+  }
 }
 
-void XboxController::deviceChanged(const XboxController& device, bool added)
-{
-  for (auto cb : device_change_callbacks_)
-    cb(device, added);
-}
-
-std::vector<XboxController>& XboxController::GetControllers() 
+const std::vector<XboxController>& XboxController::GetControllers() 
 {
   return controllers_;
 }
@@ -183,24 +176,23 @@ XboxController::XboxController(libusb_device_handle* handle, int port) : usb_han
 
   // try getting USB product info
   auto* dev = libusb_get_device(handle);
-  if (dev)
-  {
-    if (libusb_get_device_descriptor(dev, &usb_desc_) != 0)
-      return;
+  if (!dev)
+    return;
 
-    auto prod_idx = usb_desc_.iProduct;
+  if (libusb_get_device_descriptor(dev, &usb_desc_) != 0)
+    return;
 
-    libusb_get_string_descriptor_ascii(handle, usb_desc_.iProduct, (unsigned char*)usb_productname_, sizeof(usb_productname_));
-    libusb_get_string_descriptor_ascii(handle, usb_desc_.iManufacturer, (unsigned char*)usb_vendorname_, sizeof(usb_vendorname_));
+  libusb_get_string_descriptor_ascii(handle, usb_desc_.iProduct, (unsigned char*)usb_productname_, sizeof(usb_productname_));
+  libusb_get_string_descriptor_ascii(handle, usb_desc_.iManufacturer, (unsigned char*)usb_vendorname_, sizeof(usb_vendorname_));
 
-    usb_product_ = usb_desc_.idProduct;
-    usb_vendor_ = usb_desc_.idVendor;
-  }
+  usb_product_ = usb_desc_.idProduct;
+  usb_vendor_ = usb_desc_.idVendor;
 }
 
 XboxController::~XboxController()
 {
   XOutput::XOutputUnPlug(port_);
+  closing_ = true;
   active_ = false;
 }
 

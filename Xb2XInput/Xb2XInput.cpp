@@ -212,9 +212,7 @@ void USBDeviceChanged(const XboxController& controller, bool added)
     num--; // controller is only removed from controllers vector after DeviceChanged callback is called, so minus 1 from the count.
 
   if (!num)
-  {
     swprintf_s(tray_text, L"Xb2XInput - waiting for controller");
-  }
   else if (num == 1)
   {
     // only 1 controller left in vector, get info for that controller
@@ -229,9 +227,8 @@ void USBDeviceChanged(const XboxController& controller, bool added)
       controller.GetVendorId(), controller.GetProductId(), productname.c_str());
   }
   else
-  {
     swprintf_s(tray_text, L"Xb2XInput - active with %d controllers", num);
-  }
+
   // Update systray hover text
   wcscpy_s(notifyIconData.szTip, tray_text);
 
@@ -292,8 +289,6 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
 
   if (!XboxController::Initialize(title))
     return 1;
-
-  XboxController::OnDeviceChanged(USBDeviceChanged);
 
   // Start our USB threads
   check_thread = std::thread(USBCheckThread);

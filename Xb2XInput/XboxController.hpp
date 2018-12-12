@@ -1,11 +1,8 @@
 #pragma once
-#include <functional>
-#include <mutex>
-#include <vector>
-
 #include "XOutput.hpp"
 #include <libusb.h>
 
+#include <vector>
 
 // original xbox XINPUT definitions from https://github.com/paralin/hl2sdk/blob/master/common/xbox/xboxstubs.h
 
@@ -78,7 +75,6 @@ class XboxController
   char usb_productname_[128];
   char usb_vendorname_[128];
 
-  bool output_inited_ = false;
   bool closing_ = false;
 
   XboxInputReport input_prev_;
@@ -86,8 +82,6 @@ class XboxController
   XINPUT_GAMEPAD gamepad_;
 
   bool update();
-
-  static void deviceChanged(const XboxController& device, bool added);
 public:
   XboxController(libusb_device_handle* handle, int port);
   ~XboxController();
@@ -98,9 +92,8 @@ public:
   const char* GetVendorName() const { return usb_vendorname_; }
 
   static bool Initialize(WCHAR* app_title);
-  static void OnDeviceChanged(std::function<void(const XboxController& device, bool added)> callback);
   static void UpdateAll();
   static void Close();
   static libusb_device_handle* OpenDevice();
-  static std::vector<XboxController>& GetControllers();
+  static const std::vector<XboxController>& GetControllers();
 };
