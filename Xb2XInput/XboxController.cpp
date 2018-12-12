@@ -104,6 +104,10 @@ libusb_device_handle* XboxController::OpenDevice()
     if (exists)
       continue;
 
+    ret = libusb_open_device_with_vid_pid(NULL, desc.idVendor, desc.idProduct);
+    if (!ret)
+      continue;
+
     int port_num = 4;
     for (int i = 0; i < 4; i++)
     {
