@@ -24,9 +24,6 @@
     <ClInclude Include="targetver.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="XOutput.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="XboxController.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -38,10 +35,10 @@
     <ClCompile Include="Xb2XInput.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="XOutput.cpp">
+    <ClCompile Include="XboxController.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="XboxController.cpp">
+    <ClCompile Include="ViGEmClient.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

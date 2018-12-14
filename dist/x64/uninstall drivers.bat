@@ -4,7 +4,7 @@ goto start
 ::What this .bat does-
 
 ::Checks for administrator permissions by seeing if we can use `net session`
-::then uninstalls ScpVBus
+::then uninstalls ViGEmBus & ScpVBus
 
 :start
 echo Administrative permissions required. Checking permissions...
@@ -18,6 +18,7 @@ cd %~dp0
 cd Drivers
 echo Removing system drivers...
 
+devcon remove Root\ViGEmBus
 devcon remove Root\ScpVBus
 
 :exit

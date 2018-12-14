@@ -18,7 +18,7 @@ cd %~dp0
 cd Drivers
 echo Installing system drivers...
 
-devcon install .\ScpVBus\ScpVBus.inf Root\ScpVBus
+devcon install .\ViGEm\ViGEmBus.inf Root\ViGEmBus
 
 echo Installing WinUSB drivers for known gamepads (this might take a minute or two)
 wdi-simple --vid 0x044F --pid 0x0F07 --type 0 --name "Thrustmaster Controller"

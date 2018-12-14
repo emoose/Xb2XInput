@@ -12,20 +12,18 @@ I decided to try looking into a user-mode solution instead, something with a sma
 Sadly there doesn't seem to be much work done on something like that for Windows, but luckily others have worked on user-mode solutions for other kinds of controllers, which wasn't too hard to adapt to the Xbox OG controllers.  
 (major thanks to MTCKC for their [ProconXInput project](https://github.com/MTCKC/ProconXInput/)!)
 
-While it's not fully user-mode as it needs the ScpVBus driver to be installed, that driver does have its advantages over the other ones:
+While it's not fully user-mode as it needs the ViGEmBus driver to be installed, ViGEmBus does have its advantages over the other drivers:
 
 - Fully open source
 - Used & tested by tons of people
 - Not tied to Xbox - can be used to add support for pretty much any kind of controller
 - Signed!
 
-If you have ScpToolkit installed (eg for using DS3/DS4 controllers) you should already have ScpVBus installed too, otherwise the guide below explains how to set it up.
-
 Setup
 ---
 Download the latest compiled version of Xb2XInput from the [releases page](https://github.com/emoose/Xb2XInput/releases).
 
-To make use of Xb2XInput you'll need the ScpVBus driver installed, and your controller will need to be setup to use the "WinUSB" driver. The included "install drivers.bat" will take care of setting up these drivers for you.
+To make use of Xb2XInput you'll need the ViGEmBus driver installed, and your controller will need to be setup to use the "WinUSB" driver. The included "install drivers.bat" will take care of setting up these drivers for you.
 
 Simply extract the entire zip somewhere, navigate to your OS's directory (x86 for 32-bit, x64 for 64-bit) and then run the "install drivers.bat" as administrator (right-click -> Run as administrator).
 
@@ -73,7 +71,7 @@ Thanks
 ---
 MTCKC's [ProconXInput project](https://github.com/MTCKC/ProconXInput/) (for supporting Nintendo Switch Pro Controllers) was invaluable in creating Xb2XInput.
 
-Thanks to nefarius for [ScpVBus/XOutput](https://github.com/nefarius/ScpVBus) (part of the awesome [ScpToolkit](https://github.com/nefarius/ScpToolkit) project).
+Thanks to nefarius & ViGEm team for [ViGEmBus](https://github.com/ViGEm/ViGEmBus) (part of the awesome [ViGEm](https://github.com/ViGEm) project).
 
 Big thanks to the [libusb](https://libusb.info/) developers too.
 
@@ -92,11 +90,13 @@ This way if I update any code while you're working, you should be able to merge 
 Todo
 ---
 - Allow setting deadzones / calibrating the analog sticks
-- Test multiple Xbox OG controllers at once (waiting for one to be delivered as we speak)
+- Test x86 version
 
 License
 ---
-"install/uninstall driver.bat" and XOutput.cpp/XOutput.hpp is taken from [ProconXInput](https://github.com/MTCKC/ProconXInput/) which is MIT (Expat) licensed
+"install/uninstall driver.bat" is taken from [ProconXInput](https://github.com/MTCKC/ProconXInput/) which is MIT (Expat) licensed.
+
+ViGEmClient code taken from [ViGEmClient](https://github.com/ViGEm/ViGEmClient), licensed under MIT license.
 
 wdi-simple taken from [libwdi project](https://github.com/pbatard/libwdi) which is LGPL 3 licensed.
 

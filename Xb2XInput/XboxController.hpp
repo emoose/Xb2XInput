@@ -1,8 +1,10 @@
 #pragma once
-#include "XOutput.hpp"
+#include "ViGEm/Client.h"
+#include "ViGEm/Util.h"
 #include <libusb.h>
 
 #include <vector>
+#include <mutex>
 
 // original xbox XINPUT definitions from https://github.com/paralin/hl2sdk/blob/master/common/xbox/xboxstubs.h
 
@@ -65,12 +67,13 @@ struct XboxOutputReport {
 
 class XboxController
 {
-  int port_;
   std::vector<uint8_t*> usb_ports_;
   bool active_ = false;
   libusb_device_handle* usb_handle_ = nullptr;
   int usb_product_ = 0;
   int usb_vendor_ = 0;
+
+  PVIGEM_TARGET target_ = 0;
 
   libusb_device_descriptor usb_desc_;
   char usb_productname_[128];
@@ -80,13 +83,18 @@ class XboxController
 
   XboxInputReport input_prev_;
   XboxOutputReport output_prev_;
-  XINPUT_GAMEPAD gamepad_;
+  bool send_output_ = false;
+  XUSB_REPORT gamepad_;
+
+  int usb_iface_num_ = 0;
+  int usb_iface_setting_num_ = 0;
+  uint8_t endpoint_in_ = 0;
+  uint8_t endpoint_out_ = 0;
 
   bool update();
 public:
-  XboxController(libusb_device_handle* handle, int port, uint8_t* usb_ports, int num_ports);
+  XboxController(libusb_device_handle* handle, uint8_t* usb_ports, int num_ports);
   ~XboxController();
-  int GetPortNum() const { return port_; }
   int GetProductId() const { return usb_product_; }
   int GetVendorId() const { return usb_vendor_; }
   const char* GetProductName() const { return usb_productname_; }
@@ -97,4 +105,12 @@ public:
   static void Close();
   static libusb_device_handle* OpenDevice();
   static const std::vector<XboxController>& GetControllers();
+
+  static void OnVigemNotification(
+    PVIGEM_CLIENT Client,
+    PVIGEM_TARGET Target,
+    UCHAR LargeMotor,
+    UCHAR SmallMotor,
+    UCHAR LedNumber
+  );
 };

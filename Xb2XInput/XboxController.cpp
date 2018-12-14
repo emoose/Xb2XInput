@@ -60,9 +60,11 @@ void dbgprintf(const char* format, ...)
   va_end(args);
 }
 
+PVIGEM_CLIENT vigem;
 std::vector<XboxController> controllers_;
 std::mutex controller_mutex_;
-bool ports_[4];
+std::mutex usb_mutex_;
+std::mutex output_mutex_;
 
 libusb_device_handle* XboxController::OpenDevice()
 {
@@ -108,18 +110,7 @@ libusb_device_handle* XboxController::OpenDevice()
     if (!ret)
       continue;
 
-    int port_num = 4;
-    for (int i = 0; i < 4; i++)
-    {
-      if (!ports_[i])
-      {
-        port_num = i;
-        ports_[i] = true;
-        break;
-      }
-    }
-
-    auto controller = XboxController(ret, port_num, (uint8_t*)&usb_ports, num_ports);
+    auto controller = XboxController(ret, (uint8_t*)&usb_ports, num_ports);
     std::lock_guard<std::mutex> guard(controller_mutex_);
 
     controllers_.push_back(controller);
@@ -138,7 +129,7 @@ bool XboxController::Initialize(WCHAR* app_title)
   if (inited)
     return true;
 
-  // Init libusb & XOutput
+  // Init libusb & ViGEm
   auto ret = libusb_init(NULL);
   if (ret < 0)
   {
@@ -146,24 +137,15 @@ bool XboxController::Initialize(WCHAR* app_title)
     return false;
   }
 
-  try {
-    XOutput::XOutputInitialize();
-  }
-  catch (XOutput::XOutputError &e) {
+  vigem = vigem_alloc();
+  const auto retval = vigem_connect(vigem);
+  if (!vigem || !VIGEM_SUCCESS(retval))
+  {
     wchar_t buf[256];
-    swprintf_s(buf, L"Failed to init XOutput (error: %S)\r\nMake sure XOutput1_1.dll is located next to the exe!", e.what());
+    swprintf_s(buf, L"Failed to init ViGEm (error: %d)", retval);
     MessageBox(NULL, buf, app_title, MB_OK);
     return false;
   }
-
-  DWORD unused;
-  if (XOutput::XOutputGetRealUserIndex(0, &unused) != 0) {
-    MessageBox(NULL, L"Failed to setup XOutput :(", app_title, MB_OK);
-    return false;
-  }
-
-  // Unplug any existing XOutput devices
-  Close();
 
   inited = true;
   return true;
@@ -179,15 +161,13 @@ void XboxController::UpdateAll()
     {
       USBDeviceChanged(*iter, false);
 
-      int port = iter->port_;
-      auto handle = iter->usb_handle_;
+      libusb_close(iter->usb_handle_);
 
-      libusb_close(handle);
-
-      XOutput::XOutputUnPlug(port);
+      vigem_target_x360_unregister_notification(iter->target_);
+      vigem_target_remove(vigem, iter->target_);
+      vigem_target_free(iter->target_);
 
       iter = controllers_.erase(iter);
-      ports_[port] = false;
     }
     else
       ++iter;
@@ -197,14 +177,15 @@ void XboxController::UpdateAll()
 void XboxController::Close()
 {
   std::lock_guard<std::mutex> guard(controller_mutex_);
+  for (auto& controller : controllers_)
+  {
+    vigem_target_x360_unregister_notification(controller.target_);
+    vigem_target_remove(vigem, controller.target_);
+    vigem_target_free(controller.target_);
+  }
   controllers_.clear();
 
-  XOutput::XOutputUnPlugAll();
-  for (int i = 0; i < 4; i++)
-  {
-    XOutput::XOutputUnPlug(i);
-    ports_[i] = false;
-  }
+  vigem_free(vigem);
 }
 
 const std::vector<XboxController>& XboxController::GetControllers() 
@@ -212,7 +193,7 @@ const std::vector<XboxController>& XboxController::GetControllers()
   return controllers_;
 }
 
-XboxController::XboxController(libusb_device_handle* handle, int port, uint8_t* usb_ports, int num_ports) : usb_handle_(handle), port_(port) {
+XboxController::XboxController(libusb_device_handle* handle, uint8_t* usb_ports, int num_ports) : usb_handle_(handle) {
   usb_productname_[0] = 0;
   usb_vendorname_[0] = 0;
 
@@ -227,6 +208,47 @@ XboxController::XboxController(libusb_device_handle* handle, int port, uint8_t* 
   if (libusb_get_device_descriptor(dev, &usb_desc_) != 0)
     return;
 
+  // try finding interrupt/bulk endpoints
+  struct libusb_config_descriptor *conf_desc;
+  libusb_get_config_descriptor(dev, 0, &conf_desc);
+  int nb_ifaces = conf_desc->bNumInterfaces;
+  for (int i = 0; i < nb_ifaces; i++)
+  {
+    for (int j = 0; j < conf_desc->interface[i].num_altsetting; j++)
+    {
+      for (int k = 0; k < conf_desc->interface[i].altsetting[j].bNumEndpoints; k++)
+      {
+        auto endpoint = &conf_desc->interface[i].altsetting[j].endpoint[k];
+        // Use the first interrupt or bulk IN/OUT endpoints as default
+        if ((endpoint->bmAttributes & LIBUSB_TRANSFER_TYPE_MASK) & (LIBUSB_TRANSFER_TYPE_BULK | LIBUSB_TRANSFER_TYPE_INTERRUPT))
+        {
+          if (endpoint->bEndpointAddress & LIBUSB_ENDPOINT_IN)
+          {
+            if (!endpoint_in_)
+            {
+              usb_iface_num_ = i;
+              usb_iface_setting_num_ = j;
+              endpoint_in_ = endpoint->bEndpointAddress;
+            }
+          }
+          else
+          {
+            if (!endpoint_out_)
+              endpoint_out_ = endpoint->bEndpointAddress;
+          }
+        }
+      }
+    }
+  }
+  libusb_free_config_descriptor(conf_desc);
+
+  // if we have interrupt endpoints then we have to claim the interface & set altsetting in order to use them
+  if (endpoint_in_ || endpoint_out_)
+  {
+    libusb_claim_interface(handle, usb_iface_num_);
+    libusb_set_interface_alt_setting(handle, usb_iface_num_, usb_iface_setting_num_);
+  }
+
   libusb_get_string_descriptor_ascii(handle, usb_desc_.iProduct, (unsigned char*)usb_productname_, sizeof(usb_productname_));
   libusb_get_string_descriptor_ascii(handle, usb_desc_.iManufacturer, (unsigned char*)usb_vendorname_, sizeof(usb_vendorname_));
 
@@ -240,6 +262,25 @@ XboxController::~XboxController()
   active_ = false;
 }
 
+void XboxController::OnVigemNotification(PVIGEM_CLIENT Client, PVIGEM_TARGET Target, UCHAR LargeMotor, UCHAR SmallMotor, UCHAR LedNumber)
+{
+  for (auto& controller : controllers_)
+  {
+    if (controller.target_ != Target)
+      continue;
+
+    memset(&controller.output_prev_, 0, sizeof(XboxOutputReport));
+    controller.output_prev_.bSize = sizeof(XboxOutputReport);
+    controller.output_prev_.Rumble.wLeftMotorSpeed = _byteswap_ushort(LargeMotor); // why do these need to be byteswapped???
+    controller.output_prev_.Rumble.wRightMotorSpeed = _byteswap_ushort(SmallMotor);
+
+    std::lock_guard<std::mutex> guard(output_mutex_);
+    controller.send_output_ = true;
+
+    break;
+  }
+}
+
 // XboxController::Update: returns false if controller disconnected
 bool XboxController::update()
 {
@@ -250,14 +291,15 @@ bool XboxController::update()
       if (closing_)
         return true;
 
-      auto ret = XOutput::XOutputPlugIn(port_);
-      if (!ret)
+      target_ = vigem_target_x360_alloc();
+      auto ret = vigem_target_add(vigem, target_);
+      if (VIGEM_SUCCESS(ret))
       {
+        vigem_target_x360_register_notification(vigem, target_, XboxController::OnVigemNotification);
         active_ = true;
         break;
       }
-
-      // failed to plug in XOutput port, retry in 1.5s
+      // failed to create ViGEm target, retry in 1.5s
       Sleep(1500);
     }
   }
@@ -265,8 +307,31 @@ bool XboxController::update()
   if (closing_)
     return true;
 
-  auto ret = libusb_control_transfer(usb_handle_, LIBUSB_ENDPOINT_IN | LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE,
-    HID_GET_REPORT, (HID_REPORT_TYPE_INPUT << 8) | 0x00, 0, (unsigned char*)&input_prev_, sizeof(XboxInputReport), 1000);
+  std::lock_guard<std::mutex> guard(usb_mutex_);
+  int length = 0;
+  int ret = -1;
+  if (send_output_)
+  {
+    // if we have interrupt endpoints use those for better compatibility, otherwise fallback to control transfers
+    if(endpoint_out_)
+      ret = libusb_interrupt_transfer(usb_handle_, endpoint_out_, (unsigned char*)&output_prev_, sizeof(XboxOutputReport), &length, 1000);
+
+    if(ret < 0)
+      ret = libusb_control_transfer(usb_handle_, LIBUSB_ENDPOINT_OUT | LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE,
+        HID_SET_REPORT, (HID_REPORT_TYPE_OUTPUT << 8) | 0x00, 0, (unsigned char*)&output_prev_, sizeof(XboxOutputReport), 1000);
+
+    std::lock_guard<std::mutex> guard2(output_mutex_);
+    send_output_ = false;
+  }
+
+  // if we have interrupt endpoints use those for better compatibility, otherwise fallback to control transfers
+  ret = -1;
+  if(endpoint_in_)
+    ret = libusb_interrupt_transfer(usb_handle_, endpoint_in_, (unsigned char*)&input_prev_, sizeof(XboxInputReport), &length, 0);
+  
+  if(ret < 0)
+    ret = libusb_control_transfer(usb_handle_, LIBUSB_ENDPOINT_IN | LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE,
+      HID_GET_REPORT, (HID_REPORT_TYPE_INPUT << 8) | 0x00, 0, (unsigned char*)&input_prev_, sizeof(XboxInputReport), 1000);
 
   if (ret < 0)
   {
@@ -280,18 +345,18 @@ bool XboxController::update()
     return false;
   }
 
-  memset(&gamepad_, 0, sizeof(XINPUT_GAMEPAD));
+  memset(&gamepad_, 0, sizeof(XUSB_REPORT));
 
   // Copy over digital buttons
   gamepad_.wButtons = input_prev_.Gamepad.wButtons;
 
   // Convert analog buttons to digital
-  gamepad_.wButtons |= input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_A] ? XINPUT_GAMEPAD_A : 0;
-  gamepad_.wButtons |= input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_B] ? XINPUT_GAMEPAD_B : 0;
-  gamepad_.wButtons |= input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_X] ? XINPUT_GAMEPAD_X : 0;
-  gamepad_.wButtons |= input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_Y] ? XINPUT_GAMEPAD_Y : 0;
-  gamepad_.wButtons |= input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_WHITE] ? XINPUT_GAMEPAD_LEFT_SHOULDER : 0;
-  gamepad_.wButtons |= input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_BLACK] ? XINPUT_GAMEPAD_RIGHT_SHOULDER : 0;
+  gamepad_.wButtons |= input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_A] ? XUSB_GAMEPAD_A : 0;
+  gamepad_.wButtons |= input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_B] ? XUSB_GAMEPAD_B : 0;
+  gamepad_.wButtons |= input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_X] ? XUSB_GAMEPAD_X : 0;
+  gamepad_.wButtons |= input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_Y] ? XUSB_GAMEPAD_Y : 0;
+  gamepad_.wButtons |= input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_WHITE] ? XUSB_GAMEPAD_LEFT_SHOULDER : 0;
+  gamepad_.wButtons |= input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_BLACK] ? XUSB_GAMEPAD_RIGHT_SHOULDER : 0;
 
   // Copy over remaining analog values
   gamepad_.bLeftTrigger = input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_LEFT_TRIGGER];
@@ -303,34 +368,7 @@ bool XboxController::update()
   gamepad_.sThumbRY = input_prev_.Gamepad.sThumbRY;
 
   // Write gamepad to virtual XInput device
-  XOutput::XOutputSetState(0, &gamepad_);
-
-  if (closing_)
-    return true;
-
-  BYTE vibrate = 0;
-  BYTE big_motor = 0;
-  BYTE small_motor = 0;
-  BYTE led = 0;
-
-  if (closing_)
-    return true;
-
-  ret = XOutput::XOutputGetState(0, &vibrate, &big_motor, &small_motor, &led);
-
-  if (closing_)
-    return true;
-
-  if (!ret && vibrate != 0)
-  {
-    memset(&output_prev_, 0, sizeof(XboxOutputReport));
-    output_prev_.bSize = sizeof(XboxOutputReport);
-    output_prev_.Rumble.wLeftMotorSpeed = _byteswap_ushort(big_motor); // why do these need to be byteswapped???
-    output_prev_.Rumble.wRightMotorSpeed = _byteswap_ushort(small_motor);
-
-    libusb_control_transfer(usb_handle_, LIBUSB_ENDPOINT_OUT | LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE,
-      HID_SET_REPORT, (HID_REPORT_TYPE_OUTPUT << 8) | 0x00, 0, (unsigned char*)&output_prev_, sizeof(XboxOutputReport), 1000);
-  }
+  vigem_target_x360_update(vigem, target_, gamepad_);
 
   return true;
 }

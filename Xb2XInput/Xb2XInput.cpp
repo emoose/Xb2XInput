@@ -209,7 +209,7 @@ void USBDeviceChanged(const XboxController& controller, bool added)
   auto& controllers = XboxController::GetControllers();
   int num = (int)controllers.size();
   if (!added)
-    num--; // controller is only removed from controllers vector after DeviceChanged callback is called, so minus 1 from the count.
+    num--; // controller is only removed from controllers vector after this function gets called, so minus 1 from the count.
 
   if (!num)
     swprintf_s(tray_text, L"Xb2XInput - waiting for controller");
@@ -330,6 +330,7 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
   }
 
   // Window loop is over, delete controllers and systray icon
+  usb_end = true;
   XboxController::Close();
   Shell_NotifyIcon(NIM_DELETE, &notifyIconData);
 
