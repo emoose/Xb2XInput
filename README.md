@@ -8,7 +8,7 @@ With those my only solution was to edit the driver files, breaking any signature
 Keeping unsigned drivers enabled is a bit too risky for me though, and I also found those drivers have some issues of their own too (a controller driver shouldn't be able to cause BSoDs!).  
 Both of those only support DirectInput too, requiring another third-party app to translate that to XInput (with the best solution I found needing the app to be installed per-game...)
 
-I decided to try looking into a user-mode solution instead, something with a smaller chance of taking my whole system down at will, and ideally something that supports both Xbox OG controllers and XInput.  
+I decided to try looking into a user-mode solution instead, something with a smaller chance of taking my whole system down at will, ideally something that supports both Xbox OG controllers and XInput.  
 Sadly there doesn't seem to be much work done on something like that for Windows, but luckily others have worked on user-mode solutions for other kinds of controllers, which wasn't too hard to adapt to the Xbox OG controllers.  
 (major thanks to MTCKC for their [ProconXInput project](https://github.com/MTCKC/ProconXInput/)!)
 
@@ -33,7 +33,7 @@ To uninstall the drivers run the "uninstall drivers.bat" as administrator, to re
 
 Usage
 ---
-With the drivers setup, just extract the Xb2XInput-x.x.zip file somewhere (making sure the libusb-1.0 and XOutput1_1 DLLs are next to Xb2XInput.exe!)
+With the drivers setup, just extract the Xb2XInput-x.x.zip file somewhere (making sure the libusb-1.0 DLL is next to Xb2XInput.exe!)
 
 Now run the Xb2XInput.exe and an icon for it should appear in your system tray.  
 
