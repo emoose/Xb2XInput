@@ -468,6 +468,10 @@ VIGEM_ERROR vigem_target_x360_register_notification(
         XUSB_REQUEST_NOTIFICATION notify;
         XUSB_REQUEST_NOTIFICATION_INIT(&notify, _Target->SerialNo);
 
+        // read notification funcptr from target struct before entering loop
+        // so that we still know the actual func even if target gets de-alloced during loop
+        auto notify_func = _Target->Notification;
+
         do
         {
             DeviceIoControl(_Client->hBusDevice,
@@ -481,13 +485,13 @@ VIGEM_ERROR vigem_target_x360_register_notification(
 
             if (GetOverlappedResult(_Client->hBusDevice, &lOverlapped, &transfered, TRUE) != 0)
             {
-                if (_Target->Notification == NULL)
+                if (notify_func == NULL)
                 {
                     CloseHandle(lOverlapped.hEvent);
                     return;
                 }
 
-                reinterpret_cast<PFN_VIGEM_X360_NOTIFICATION>(_Target->Notification)(
+                reinterpret_cast<PFN_VIGEM_X360_NOTIFICATION>(notify_func)(
                     _Client,
                     _Target,
                     notify.LargeMotor,

@@ -108,6 +108,7 @@ bool StartupDeleteEntry()
 #define ID_TRAY_STARTUP 5002
 #define ID_TRAY_SEP 5003
 #define ID_TRAY_EXIT 5004
+#define ID_TRAY_CONTROLLER 5006
 
 WCHAR tray_text[128];
 
@@ -140,7 +141,25 @@ void SysTrayShowContextMenu()
 
   HMENU hPopMenu = CreatePopupMenu();
   InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING | MF_GRAYED, ID_TRAY_NAME, tray_text);
-  InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING | 
+  auto pads = XboxController::GetControllers();
+  wchar_t ctl_text[128];
+  int i = 0;
+  for (auto& controller : pads)
+  {
+    const char* usb_productname = controller.GetProductName();
+    std::string productname;
+    if (strlen(usb_productname) > 0)
+      productname = std::string(" (") + std::string(usb_productname) + std::string(")");
+
+    swprintf_s(ctl_text, L"%d: %04X:%04X%S", controller.GetControllerIndex(),
+      controller.GetVendorId(), controller.GetProductId(), productname.c_str());
+
+    InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING | MF_GRAYED, ID_TRAY_CONTROLLER + i, ctl_text);
+    i++;
+  }
+
+  InsertMenu(hPopMenu, 0xFFFFFFFF, MF_SEPARATOR, ID_TRAY_SEP, L"SEP");
+  InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING |
     (StartupIsSet() ? MF_CHECKED : MF_UNCHECKED), ID_TRAY_STARTUP, L"Run on startup");
   InsertMenu(hPopMenu, 0xFFFFFFFF, MF_SEPARATOR, ID_TRAY_SEP, L"SEP");
   InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING, ID_TRAY_EXIT, L"Exit");
@@ -211,9 +230,7 @@ void USBDeviceChanged(const XboxController& controller, bool added)
   if (!added)
     num--; // controller is only removed from controllers vector after this function gets called, so minus 1 from the count.
 
-  if (!num)
-    swprintf_s(tray_text, L"Xb2XInput - waiting for controller");
-  else if (num == 1)
+  if (num == 1)
   {
     // only 1 controller left in vector, get info for that controller
     auto& controller = controllers[0];
@@ -223,14 +240,21 @@ void USBDeviceChanged(const XboxController& controller, bool added)
     if (strlen(usb_productname) > 0)
       productname = std::string(" (") + std::string(usb_productname) + std::string(")");
 
-    swprintf_s(tray_text, L"Xb2XInput - active with controller %04X:%04X%S",
+    // only 1 controller, set hover text to display info about it, but context-menu text should just display the count
+    swprintf_s(notifyIconData.szTip, L"Xb2XInput - active with controller %04X:%04X%S",
       controller.GetVendorId(), controller.GetProductId(), productname.c_str());
+    wcscpy_s(tray_text, L"Xb2XInput - active with 1 controller");
   }
   else
-    swprintf_s(tray_text, L"Xb2XInput - active with %d controllers", num);
+  {
+    if (!num)
+      swprintf_s(notifyIconData.szTip, L"Xb2XInput - waiting for controller");
+    else
+      swprintf_s(notifyIconData.szTip, L"Xb2XInput - active with %d controllers", num);
 
-  // Update systray hover text
-  wcscpy_s(notifyIconData.szTip, tray_text);
+    // Update context-menu title text
+    wcscpy_s(tray_text, notifyIconData.szTip);
+  }
 
   // Create notification balloon
   notifyIconData.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP | NIF_INFO;

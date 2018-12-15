@@ -64,7 +64,7 @@ PVIGEM_CLIENT vigem;
 std::vector<XboxController> controllers_;
 std::mutex controller_mutex_;
 std::mutex usb_mutex_;
-std::mutex output_mutex_;
+std::mutex vigem_alloc_mutex_;
 
 libusb_device_handle* XboxController::OpenDevice()
 {
@@ -163,6 +163,7 @@ void XboxController::UpdateAll()
 
       libusb_close(iter->usb_handle_);
 
+      std::lock_guard<std::mutex> vigem_guard(vigem_alloc_mutex_);
       vigem_target_x360_unregister_notification(iter->target_);
       vigem_target_remove(vigem, iter->target_);
       vigem_target_free(iter->target_);
@@ -177,6 +178,8 @@ void XboxController::UpdateAll()
 void XboxController::Close()
 {
   std::lock_guard<std::mutex> guard(controller_mutex_);
+  std::lock_guard<std::mutex> vigem_guard(vigem_alloc_mutex_);
+
   for (auto& controller : controllers_)
   {
     vigem_target_x360_unregister_notification(controller.target_);
@@ -188,7 +191,7 @@ void XboxController::Close()
   vigem_free(vigem);
 }
 
-const std::vector<XboxController>& XboxController::GetControllers() 
+const std::vector<XboxController>& XboxController::GetControllers()
 {
   return controllers_;
 }
@@ -274,11 +277,22 @@ void XboxController::OnVigemNotification(PVIGEM_CLIENT Client, PVIGEM_TARGET Tar
     controller.output_prev_.Rumble.wLeftMotorSpeed = _byteswap_ushort(LargeMotor); // why do these need to be byteswapped???
     controller.output_prev_.Rumble.wRightMotorSpeed = _byteswap_ushort(SmallMotor);
 
-    std::lock_guard<std::mutex> guard(output_mutex_);
-    controller.send_output_ = true;
+    std::lock_guard<std::mutex> guard(usb_mutex_);
+    libusb_control_transfer(controller.usb_handle_, LIBUSB_ENDPOINT_OUT | LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE,
+      HID_SET_REPORT, (HID_REPORT_TYPE_OUTPUT << 8) | 0x00, 0, (unsigned char*)&controller.output_prev_, sizeof(XboxOutputReport), 1000);
 
     break;
   }
+}
+
+int XboxController::GetUserIndex() {
+  if (vigem && target_)
+  {
+    ULONG idx = 0;
+    if (VIGEM_SUCCESS(vigem_target_x360_get_user_index(vigem, target_, &idx)))
+      return idx;
+  }
+  return -1;
 }
 
 // XboxController::Update: returns false if controller disconnected
@@ -291,6 +305,7 @@ bool XboxController::update()
       if (closing_)
         return true;
 
+      std::lock_guard<std::mutex> vigem_guard(vigem_alloc_mutex_);
       target_ = vigem_target_x360_alloc();
       auto ret = vigem_target_add(vigem, target_);
       if (VIGEM_SUCCESS(ret))
@@ -299,37 +314,24 @@ bool XboxController::update()
         active_ = true;
         break;
       }
-      // failed to create ViGEm target, retry in 1.5s
-      Sleep(1500);
+
+      // failed to create ViGEm target, retry next update
+      return true;
     }
   }
 
   if (closing_)
     return true;
 
+  // if we have interrupt endpoints use those for better compatibility, otherwise fallback to control transfers
+  memset(&input_prev_, 0, sizeof(XboxInputReport));
   std::lock_guard<std::mutex> guard(usb_mutex_);
   int length = 0;
   int ret = -1;
-  if (send_output_)
-  {
-    // if we have interrupt endpoints use those for better compatibility, otherwise fallback to control transfers
-    if(endpoint_out_)
-      ret = libusb_interrupt_transfer(usb_handle_, endpoint_out_, (unsigned char*)&output_prev_, sizeof(XboxOutputReport), &length, 1000);
-
-    if(ret < 0)
-      ret = libusb_control_transfer(usb_handle_, LIBUSB_ENDPOINT_OUT | LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE,
-        HID_SET_REPORT, (HID_REPORT_TYPE_OUTPUT << 8) | 0x00, 0, (unsigned char*)&output_prev_, sizeof(XboxOutputReport), 1000);
-
-    std::lock_guard<std::mutex> guard2(output_mutex_);
-    send_output_ = false;
-  }
-
-  // if we have interrupt endpoints use those for better compatibility, otherwise fallback to control transfers
-  ret = -1;
-  if(endpoint_in_)
+  if (endpoint_in_)
     ret = libusb_interrupt_transfer(usb_handle_, endpoint_in_, (unsigned char*)&input_prev_, sizeof(XboxInputReport), &length, 0);
-  
-  if(ret < 0)
+
+  if (ret < 0)
     ret = libusb_control_transfer(usb_handle_, LIBUSB_ENDPOINT_IN | LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE,
       HID_GET_REPORT, (HID_REPORT_TYPE_INPUT << 8) | 0x00, 0, (unsigned char*)&input_prev_, sizeof(XboxInputReport), 1000);
 

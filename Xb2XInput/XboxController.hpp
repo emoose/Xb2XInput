@@ -83,7 +83,6 @@ class XboxController
 
   XboxInputReport input_prev_;
   XboxOutputReport output_prev_;
-  bool send_output_ = false;
   XUSB_REPORT gamepad_;
 
   int usb_iface_num_ = 0;
@@ -99,6 +98,15 @@ public:
   int GetVendorId() const { return usb_vendor_; }
   const char* GetProductName() const { return usb_productname_; }
   const char* GetVendorName() const { return usb_vendorname_; }
+
+  int GetControllerIndex()
+  { 
+    if (!target_)
+      return -1;
+    return vigem_target_get_index(target_);
+  }
+
+  int GetUserIndex();
 
   static bool Initialize(WCHAR* app_title);
   static void UpdateAll();
