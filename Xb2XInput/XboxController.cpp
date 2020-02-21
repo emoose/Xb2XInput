@@ -36,6 +36,7 @@ std::vector<std::pair<int, int>> xbox_devices =
   {0x0C12, 0x9902}, // HAMA VibraX - "FAULTY HARDWARE"
   {0x0E4C, 0x1097}, // Radica Gamester Controller
   {0x0E4C, 0x2390}, // Radica Games Jtech Controller
+  {0x0E4C, 0x3240}, // Radica Gamester
   {0x0E4C, 0x3510}, // Radica Gamester
   {0x0E6F, 0x0003}, // Logic3 Freebird wireless Controller
   {0x0E6F, 0x0005}, // Eclipse wireless Controller
