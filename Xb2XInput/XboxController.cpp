@@ -46,7 +46,7 @@ std::vector<std::pair<int, int>> xbox_devices =
   {0x0F30, 0x0202}, // Joytech Advanced Controller
   {0x0F30, 0x8888}, // BigBen XBMiniPad Controller
   {0x102C, 0xFF0C}, // Joytech Wireless Advanced Controller
-  //{0xFFFF, 0xFFFF}, // "Chinese-made Xbox Controller" (disabled since ID seems sketchy)
+  {0xFFFF, 0xFFFF}, // PowerWave Xbox Controller (The ID's may look sketchy but this controller actually uses it)
 };
 
 void USBDeviceChanged(const XboxController& controller, bool added); // from Xb2XInput.cpp
