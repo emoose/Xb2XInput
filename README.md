@@ -23,13 +23,15 @@ Setup
 ---
 Download the latest compiled version of Xb2XInput from the [releases page](https://github.com/emoose/Xb2XInput/releases).
 
-To make use of Xb2XInput you'll need the ViGEmBus driver installed, and your controller will need to be setup to use the "WinUSB" driver. The included "install drivers.bat" will take care of setting up these drivers for you.
+To make use of Xb2XInput you'll need the ViGEmBus driver installed, this can be downloaded from here: https://github.com/ViGEm/ViGEmBus/releases (If you're a Windows 7 user, make sure to install the prerequisites listed on that page!)
+
+Once ViGEmBus has been installed, the controllers will need to be setup to use the "WinUSB" driver, the included "install drivers.bat" can take care of setting up these drivers for you.
 
 Simply extract the entire zip somewhere, navigate to your OS's directory (x86 for 32-bit, x64 for 64-bit) and then run the "install drivers.bat" as administrator (right-click -> Run as administrator).
 
 Once the batch file is completed you should restart your computer to make sure they take effect.
 
-To uninstall the drivers run the "uninstall drivers.bat" as administrator, to remove the WinUSB driver you'll have to uninstall the driver from your gamepad in device manager (make sure "Delete the driver software for this device" is checked)
+To uninstall/remove the WinUSB driver you'll have to uninstall the driver from your gamepad in device manager (make sure "Delete the driver software for this device" is checked)
 
 Usage
 ---
