@@ -278,8 +278,11 @@ void CALLBACK XboxController::OnVigemNotification(PVIGEM_CLIENT Client, PVIGEM_T
     controller.output_prev_.Rumble.wLeftMotorSpeed = _byteswap_ushort(LargeMotor); // why do these need to be byteswapped???
     controller.output_prev_.Rumble.wRightMotorSpeed = _byteswap_ushort(SmallMotor);
 
-    libusb_control_transfer(controller.usb_handle_, LIBUSB_ENDPOINT_OUT | LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE,
-      HID_SET_REPORT, (HID_REPORT_TYPE_OUTPUT << 8) | 0x00, 0, (unsigned char*)&controller.output_prev_, sizeof(XboxOutputReport), 1000);
+    {
+      std::lock_guard<std::mutex> guard(usb_mutex_);
+      libusb_control_transfer(controller.usb_handle_, LIBUSB_ENDPOINT_OUT | LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE,
+        HID_SET_REPORT, (HID_REPORT_TYPE_OUTPUT << 8) | 0x00, 0, (unsigned char*)&controller.output_prev_, sizeof(XboxOutputReport), 1000);
+    }
 
     break;
   }
@@ -325,15 +328,18 @@ bool XboxController::update()
 
   // if we have interrupt endpoints use those for better compatibility, otherwise fallback to control transfers
   memset(&input_prev_, 0, sizeof(XboxInputReport));
-  std::lock_guard<std::mutex> guard(usb_mutex_);
   int length = 0;
   int ret = -1;
+
   if (endpoint_in_)
     ret = libusb_interrupt_transfer(usb_handle_, endpoint_in_, (unsigned char*)&input_prev_, sizeof(XboxInputReport), &length, 0);
 
   if (ret < 0)
+  {
+    std::lock_guard<std::mutex> guard(usb_mutex_);
     ret = libusb_control_transfer(usb_handle_, LIBUSB_ENDPOINT_IN | LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE,
       HID_GET_REPORT, (HID_REPORT_TYPE_INPUT << 8) | 0x00, 0, (unsigned char*)&input_prev_, sizeof(XboxInputReport), 1000);
+  }
 
   if (ret < 0)
   {
