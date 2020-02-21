@@ -265,7 +265,7 @@ XboxController::~XboxController()
   active_ = false;
 }
 
-void XboxController::OnVigemNotification(PVIGEM_CLIENT Client, PVIGEM_TARGET Target, UCHAR LargeMotor, UCHAR SmallMotor, UCHAR LedNumber)
+void CALLBACK XboxController::OnVigemNotification(PVIGEM_CLIENT Client, PVIGEM_TARGET Target, UCHAR LargeMotor, UCHAR SmallMotor, UCHAR LedNumber)
 {
   for (auto& controller : controllers_)
   {

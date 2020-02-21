@@ -1,7 +1,7 @@
 /*
 MIT License
 
-Copyright (c) 2017 Benjamin "Nefarius" Höglinger
+Copyright (c) 2017-2019 Nefarius Software Solutions e.U. and Contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -63,7 +63,9 @@ extern "C" {
         VIGEM_ERROR_CALLBACK_NOT_FOUND = 0xE0000011,
         VIGEM_ERROR_BUS_ALREADY_CONNECTED = 0xE0000012,
         VIGEM_ERROR_BUS_INVALID_HANDLE = 0xE0000013,
-        VIGEM_ERROR_XUSB_USERINDEX_OUT_OF_RANGE = 0xE0000014
+        VIGEM_ERROR_XUSB_USERINDEX_OUT_OF_RANGE = 0xE0000014,
+		VIGEM_ERROR_INVALID_PARAMETER = 0xE0000015
+
     } VIGEM_ERROR;
 
     /**
@@ -94,7 +96,7 @@ extern "C" {
 
     typedef
         _Function_class_(EVT_VIGEM_TARGET_ADD_RESULT)
-        VOID
+        VOID CALLBACK
         EVT_VIGEM_TARGET_ADD_RESULT(
             PVIGEM_CLIENT Client,
             PVIGEM_TARGET Target,
@@ -105,7 +107,7 @@ extern "C" {
 
     typedef
         _Function_class_(EVT_VIGEM_X360_NOTIFICATION)
-        VOID
+        VOID CALLBACK
         EVT_VIGEM_X360_NOTIFICATION(
             PVIGEM_CLIENT Client,
             PVIGEM_TARGET Target,
@@ -118,7 +120,7 @@ extern "C" {
 
     typedef
         _Function_class_(EVT_VIGEM_DS4_NOTIFICATION)
-        VOID
+        VOID CALLBACK
         EVT_VIGEM_DS4_NOTIFICATION(
             PVIGEM_CLIENT Client,
             PVIGEM_TARGET Target,

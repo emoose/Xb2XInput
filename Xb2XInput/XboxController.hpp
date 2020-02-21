@@ -114,7 +114,7 @@ public:
   static libusb_device_handle* OpenDevice();
   static const std::vector<XboxController>& GetControllers();
 
-  static void OnVigemNotification(
+  static void CALLBACK OnVigemNotification(
     PVIGEM_CLIENT Client,
     PVIGEM_TARGET Target,
     UCHAR LargeMotor,
