@@ -277,7 +277,6 @@ void CALLBACK XboxController::OnVigemNotification(PVIGEM_CLIENT Client, PVIGEM_T
     controller.output_prev_.Rumble.wLeftMotorSpeed = _byteswap_ushort(LargeMotor); // why do these need to be byteswapped???
     controller.output_prev_.Rumble.wRightMotorSpeed = _byteswap_ushort(SmallMotor);
 
-    std::lock_guard<std::mutex> guard(usb_mutex_);
     libusb_control_transfer(controller.usb_handle_, LIBUSB_ENDPOINT_OUT | LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE,
       HID_SET_REPORT, (HID_REPORT_TYPE_OUTPUT << 8) | 0x00, 0, (unsigned char*)&controller.output_prev_, sizeof(XboxOutputReport), 1000);
 
