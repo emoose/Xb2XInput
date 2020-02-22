@@ -48,6 +48,18 @@ Similarly, unplugging a controller will show a notification about the controller
 #### Viewing status
 To view the status of Xb2XInput just hover over the icon, any details about connected devices should be shown in the tooltip (if tooltip doesn't appear, click the icon instead)
 
+#### Guide button emulation
+Sadly the Xbox OG controller doesn't contain the guide button usually found on XInput devices. However as of Xb2XInput v1.3.2 this button can now be emulated, through the use of the LT+RT+LS+RS button combination.
+
+By default this button combination will be enabled, but if desired you can easily disable it through the system tray menu, in case it interferes with something else you need the combination for.
+
+(right now you'll have to disable the combination manually each time XB2X is ran, but hopefully in future we can store your preference somewhere instead)
+
+#### Vibration toggle
+In case you wish to disable your controllers vibration function, eg. if a game has issues with it, or your controller has problems with the motors, you can also do this through the context-menu.
+
+(As with the guide button emulation toggle above, your choice isn't saved yet unfortunately, so you will have to disable it manually each time XB2X is ran)
+
 #### Run on startup
 To run Xb2XInput on startup just click the icon and choose the "Run on startup" option, a registry entry will be made for Xb2XInput to be ran from it's current path.  
 If you move the Xb2XInput exe (and associated dlls) make sure to choose the "Run on startup" option again to update the startup path.

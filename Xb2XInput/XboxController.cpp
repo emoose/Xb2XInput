@@ -273,6 +273,12 @@ void CALLBACK XboxController::OnVigemNotification(PVIGEM_CLIENT Client, PVIGEM_T
     if (controller.target_ != Target)
       continue;
 
+    extern bool vibrationEnabled;
+    if (!vibrationEnabled)
+    {
+      LargeMotor = SmallMotor = 0;
+    }
+
     memset(&controller.output_prev_, 0, sizeof(XboxOutputReport));
     controller.output_prev_.bSize = sizeof(XboxOutputReport);
     controller.output_prev_.Rumble.wLeftMotorSpeed = _byteswap_ushort(LargeMotor); // why do these need to be byteswapped???
@@ -326,25 +332,30 @@ bool XboxController::update()
   if (closing_)
     return true;
 
-  // if we have interrupt endpoints use those for better compatibility, otherwise fallback to control transfers
   memset(&input_prev_, 0, sizeof(XboxInputReport));
   int length = 0;
   int ret = -1;
 
-  if (endpoint_in_)
-    ret = libusb_interrupt_transfer(usb_handle_, endpoint_in_, (unsigned char*)&input_prev_, sizeof(XboxInputReport), &length, 0);
 
-  if (ret < 0)
+  // if we have interrupt endpoints use those for better compatibility, otherwise fallback to control transfers
+  if (endpoint_in_)
+  {
+    extern int poll_ms;
+    ret = libusb_interrupt_transfer(usb_handle_, endpoint_in_, (unsigned char*)&input_prev_, sizeof(XboxInputReport), &length, poll_ms);
+    if (ret < 0)
+      return true; // No input available atm
+  }
+  else
   {
     std::lock_guard<std::mutex> guard(usb_mutex_);
     ret = libusb_control_transfer(usb_handle_, LIBUSB_ENDPOINT_IN | LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE,
       HID_GET_REPORT, (HID_REPORT_TYPE_INPUT << 8) | 0x00, 0, (unsigned char*)&input_prev_, sizeof(XboxInputReport), 1000);
-  }
 
-  if (ret < 0)
-  {
-    dbgprintf(__FUNCTION__ ": libusb transfer failed (code %d)", ret);
-    return false;
+    if (ret < 0)
+    {
+      dbgprintf(__FUNCTION__ ": libusb control transfer failed (code %d)", ret);
+      return false;
+    }
   }
 
   if (input_prev_.bSize != sizeof(XboxInputReport))
@@ -369,6 +380,21 @@ bool XboxController::update()
   // Copy over remaining analog values
   gamepad_.bLeftTrigger = input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_LEFT_TRIGGER];
   gamepad_.bRightTrigger = input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_RIGHT_TRIGGER];
+
+  // Secret guide combination: LT + RT + LS + RS
+  extern bool guideCombinationEnabled;
+  if(guideCombinationEnabled)
+    if ((input_prev_.Gamepad.wButtons & OGXINPUT_GAMEPAD_LEFT_THUMB) && (input_prev_.Gamepad.wButtons & OGXINPUT_GAMEPAD_RIGHT_THUMB) &&
+      (gamepad_.bLeftTrigger >= 0x8) && (gamepad_.bRightTrigger >= 0x8))
+    {
+      gamepad_.wButtons |= XUSB_GAMEPAD_GUIDE;
+
+      // Clear combination from the emulated pad, don't want it to interfere with guide:
+      gamepad_.wButtons &= ~XUSB_GAMEPAD_LEFT_THUMB;
+      gamepad_.wButtons &= ~XUSB_GAMEPAD_RIGHT_THUMB;
+      gamepad_.bLeftTrigger = 0;
+      gamepad_.bRightTrigger = 0;
+    }
 
   gamepad_.sThumbLX = input_prev_.Gamepad.sThumbLX;
   gamepad_.sThumbLY = input_prev_.Gamepad.sThumbLY;

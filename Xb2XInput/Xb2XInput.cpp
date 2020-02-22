@@ -8,7 +8,15 @@
 // how many times to check the USB device each second, must be 1000 or lower, higher value = higher CPU usage
 // 144 seems a good value, i don't really know anyone that uses a higher refresh rate than that...
 // TODO: make this configurable?
-int poll_rate = 144;
+const int poll_rate = 144;
+
+int poll_ms = (1000 / min(1000, poll_rate));
+
+// LT + RT + LS + RS to emulate guide button
+bool guideCombinationEnabled = true;
+
+// Vibration support
+bool vibrationEnabled = true;
 
 WCHAR title[256];
 bool usb_end = false;
@@ -109,6 +117,8 @@ bool StartupDeleteEntry()
 #define ID_TRAY_SEP 5003
 #define ID_TRAY_EXIT 5004
 #define ID_TRAY_CONTROLLER 5006
+#define ID_TRAY_GUIDEBTN 5007
+#define ID_TRAY_VIBING 5008
 
 WCHAR tray_text[128];
 
@@ -160,6 +170,10 @@ void SysTrayShowContextMenu()
 
   InsertMenu(hPopMenu, 0xFFFFFFFF, MF_SEPARATOR, ID_TRAY_SEP, L"SEP");
   InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING |
+    (guideCombinationEnabled ? MF_CHECKED : MF_UNCHECKED), ID_TRAY_GUIDEBTN, L"Enable guide button combination (LT+RT+LS+RS)");
+  InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING |
+    (vibrationEnabled ? MF_CHECKED : MF_UNCHECKED), ID_TRAY_VIBING, L"Enable controller vibration");
+  InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING |
     (StartupIsSet() ? MF_CHECKED : MF_UNCHECKED), ID_TRAY_STARTUP, L"Run on startup");
   InsertMenu(hPopMenu, 0xFFFFFFFF, MF_SEPARATOR, ID_TRAY_SEP, L"SEP");
   InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING, ID_TRAY_EXIT, L"Exit");
@@ -193,6 +207,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         StartupDeleteEntry();
       else
         StartupCreateEntry();
+      break;
+    case ID_TRAY_GUIDEBTN:
+      guideCombinationEnabled = !guideCombinationEnabled;
+      break;
+    case ID_TRAY_VIBING:
+      vibrationEnabled = !vibrationEnabled;
       break;
     default:
       return DefWindowProc(hWnd, message, wParam, lParam);
@@ -294,7 +314,7 @@ void USBUpdateThread()
       Sleep(500); // sleep for a bit so we don't hammer the CPU
 
     XboxController::UpdateAll();
-    Sleep(1000 / min(1000, poll_rate));
+    Sleep(poll_ms);
   }
 }
 #pragma endregion
