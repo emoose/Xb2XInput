@@ -15,7 +15,7 @@ int poll_ms = (1000 / min(1000, poll_rate));
 // LT + RT + LS + RS to emulate guide button
 bool guideCombinationEnabled = true;
 
-// (LT | RT) + LS + RS + DPAD to change deadzone 
+// LT + RT + (LS | RS) + D-Pad Up/Down
 bool deadzoneCombinationEnabled = true;
 
 // Vibration support
@@ -181,7 +181,7 @@ void SysTrayShowContextMenu()
     (StartupIsSet() ? MF_CHECKED : MF_UNCHECKED), ID_TRAY_STARTUP, L"Run on startup");
   InsertMenu(hPopMenu, 0xFFFFFFFF, MF_SEPARATOR, ID_TRAY_SEP, L"SEP");
   InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING |
-    (deadzoneCombinationEnabled ? MF_CHECKED : MF_UNCHECKED), ID_TRAY_DEADZONE, L"Enable deadzone combination (LT|RT)+LS+RS+DPAD");
+    (deadzoneCombinationEnabled ? MF_CHECKED : MF_UNCHECKED), ID_TRAY_DEADZONE, L"Enable Deadzone Adjustment (LT+RT+(LS/RS)+DPAD Up/Dn)");
 
   // Insert current deadzone adjustments into context menu
   i = 0;

@@ -437,7 +437,7 @@ bool XboxController::update()
       gamepad_.bRightTrigger = 0;
     }
 
-  // Secret Deadzone combination: (LT | RT) + LS + RS + D-Pad
+  // Secret Deadzone combination: (LT + RT + (LS | RS) + D-Pad Up/Down
   extern bool deadzoneCombinationEnabled; 
   if(deadzoneCombinationEnabled){
     if ((input_prev_.Gamepad.wButtons & OGXINPUT_GAMEPAD_LEFT_THUMB) ^ (input_prev_.Gamepad.wButtons & OGXINPUT_GAMEPAD_RIGHT_THUMB) && // // (LS XOR RS) AND
