@@ -304,6 +304,47 @@ int XboxController::GetUserIndex() {
   return -1;
 }
 
+int XboxController::deadZoneCalc(short *x_out, short *y_out, short x, short y, short deadzone, short sickzone){
+  // Returns 0 if in deadzone, 1 in sickzone, 2 if passthrough. 
+
+  short status;
+  
+  // If no deadzone, pass directly through.
+  if (deadzone == 0){
+    *x_out = x;
+    *y_out = y;
+    return 2;
+  } 
+
+  // convert to polar coordinates
+  int r_in = sqrt(pow(x,2)+pow(y,2));
+  short r_sign = (y >= 0 ? 1 : -1); // For negative Y-axis cartesian coordinates 
+  float theta = acos((float)x/fmax(1.0,r_in));
+  int r_out;
+
+  // Return origin if in Deadzone 
+  if (r_in < deadzone){
+    status = 0;
+    r_out = 0;
+  }
+
+  // Scale to full range over "sickzone" for precision near deadzone
+  // this way output doesn't jump from 0,0 to deadzone limit.
+  else if (r_in < sickzone){ 
+    status = 1;
+    r_out = (float)(r_in - deadzone) / (float)(sickzone - deadzone) * sickzone;
+  } else {
+    status = 2;
+    r_out = r_in;
+  }
+
+  // Convert back to cartesian coordinates for x,y output
+  *x_out = r_out*cos(theta);
+  *y_out = r_sign*r_out*sin(theta);
+
+  return status;
+}
+
 // XboxController::Update: returns false if controller disconnected
 bool XboxController::update()
 {
@@ -396,13 +437,39 @@ bool XboxController::update()
       gamepad_.bRightTrigger = 0;
     }
 
-  gamepad_.sThumbLX = input_prev_.Gamepad.sThumbLX;
-  gamepad_.sThumbLY = input_prev_.Gamepad.sThumbLY;
-  gamepad_.sThumbRX = input_prev_.Gamepad.sThumbRX;
-  gamepad_.sThumbRY = input_prev_.Gamepad.sThumbRY;
+  // Secret Deadzone combination: (LT | RT) + LS + RS + D-Pad
+  extern bool deadzoneCombinationEnabled; 
+  if(deadzoneCombinationEnabled){
+    if ((input_prev_.Gamepad.wButtons & OGXINPUT_GAMEPAD_LEFT_THUMB) ^ (input_prev_.Gamepad.wButtons & OGXINPUT_GAMEPAD_RIGHT_THUMB) && // // (LS XOR RS) AND
+    ((gamepad_.bLeftTrigger >= 0x8) && (gamepad_.bRightTrigger >= 0x8)) &&  // Left and Right Trigger AND
+    (input_prev_.Gamepad.wButtons & (OGXINPUT_GAMEPAD_DPAD_UP | OGXINPUT_GAMEPAD_DPAD_DOWN))) // Direction to change deadzone
+    {
+      // wait for previous deadzone adjustment button release
+      if (!deadzone_.hold){ 
+        short adjustment = (input_prev_.Gamepad.wButtons & OGXINPUT_GAMEPAD_DPAD_UP ? 500 : -500);
+
+        if (input_prev_.Gamepad.wButtons & OGXINPUT_GAMEPAD_LEFT_THUMB){
+          deadzone_.sThumbL = max(deadzone_.sThumbL+adjustment,0);
+        } 
+        if (input_prev_.Gamepad.wButtons & OGXINPUT_GAMEPAD_RIGHT_THUMB){
+          deadzone_.sThumbR = max(deadzone_.sThumbR+adjustment,0);
+        }
+
+        // wait for button release
+        deadzone_.hold = true;
+      }
+    } else {
+      // reset button release
+      deadzone_.hold = false;
+    }
+  }
+ 
+  deadZoneCalc(&gamepad_.sThumbLX, &gamepad_.sThumbLY, input_prev_.Gamepad.sThumbLX, input_prev_.Gamepad.sThumbLY, deadzone_.sThumbL, SHRT_MAX);
+  deadZoneCalc(&gamepad_.sThumbRX, &gamepad_.sThumbRY, input_prev_.Gamepad.sThumbRX, input_prev_.Gamepad.sThumbRY, deadzone_.sThumbR, SHRT_MAX);
 
   // Write gamepad to virtual XInput device
   vigem_target_x360_update(vigem, target_, gamepad_);
 
   return true;
 }
+

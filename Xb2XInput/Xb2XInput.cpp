@@ -15,6 +15,9 @@ int poll_ms = (1000 / min(1000, poll_rate));
 // LT + RT + LS + RS to emulate guide button
 bool guideCombinationEnabled = true;
 
+// (LT | RT) + LS + RS + DPAD to change deadzone 
+bool deadzoneCombinationEnabled = true;
+
 // Vibration support
 bool vibrationEnabled = true;
 
@@ -119,6 +122,7 @@ bool StartupDeleteEntry()
 #define ID_TRAY_CONTROLLER 5006
 #define ID_TRAY_GUIDEBTN 5007
 #define ID_TRAY_VIBING 5008
+#define ID_TRAY_DEADZONE 5100
 
 WCHAR tray_text[128];
 
@@ -176,6 +180,19 @@ void SysTrayShowContextMenu()
   InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING |
     (StartupIsSet() ? MF_CHECKED : MF_UNCHECKED), ID_TRAY_STARTUP, L"Run on startup");
   InsertMenu(hPopMenu, 0xFFFFFFFF, MF_SEPARATOR, ID_TRAY_SEP, L"SEP");
+  InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING |
+    (deadzoneCombinationEnabled ? MF_CHECKED : MF_UNCHECKED), ID_TRAY_DEADZONE, L"Enable deadzone combination (LT|RT)+LS+RS+DPAD");
+
+  // Insert current deadzone adjustments into context menu
+  i = 0;
+  for (auto& controller : pads) {
+    i++;
+    auto dz = controller.GetDeadzone();
+    swprintf_s(ctl_text, L"Deadzone %d: L(%d) R(%d)",i, dz.sThumbL, dz.sThumbR);
+    InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING | MF_GRAYED, ID_TRAY_DEADZONE+i, ctl_text);
+  }
+  
+  InsertMenu(hPopMenu, 0xFFFFFFFF, MF_SEPARATOR, ID_TRAY_SEP, L"SEP");
   InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING, ID_TRAY_EXIT, L"Exit");
 
   SetForegroundWindow(hwnd);
@@ -210,6 +227,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
       break;
     case ID_TRAY_GUIDEBTN:
       guideCombinationEnabled = !guideCombinationEnabled;
+      break;
+    case ID_TRAY_DEADZONE:
+      deadzoneCombinationEnabled = !deadzoneCombinationEnabled;
       break;
     case ID_TRAY_VIBING:
       vibrationEnabled = !vibrationEnabled;
