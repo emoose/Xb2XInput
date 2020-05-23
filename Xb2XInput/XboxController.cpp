@@ -107,8 +107,8 @@ libusb_device_handle* XboxController::OpenDevice()
     if (exists)
       continue;
 
-    ret = libusb_open_device_with_vid_pid(NULL, desc.idVendor, desc.idProduct);
-    if (!ret)
+    // open USB device by libusb_device* returned from device list
+    if (libusb_open(devs[i],&ret))
       continue;
 
     auto controller = XboxController(ret, (uint8_t*)&usb_ports, num_ports);
@@ -307,6 +307,15 @@ int XboxController::GetUserIndex() {
 int XboxController::deadZoneCalc(short *x_out, short *y_out, short x, short y, short deadzone, short sickzone){
   // Returns 0 if in deadzone, 1 in sickzone, 2 if passthrough. 
 
+  // Protect from NULL input pointers (used for 1-D deadzone)
+  short dummyvar;
+  if (!x_out){
+    x_out = &dummyvar;
+  }
+  if (!y_out){
+    y_out = &dummyvar;
+  }
+
   short status;
   
   // If no deadzone, pass directly through.
@@ -418,30 +427,28 @@ bool XboxController::update()
   gamepad_.wButtons |= input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_WHITE] ? XUSB_GAMEPAD_LEFT_SHOULDER : 0;
   gamepad_.wButtons |= input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_BLACK] ? XUSB_GAMEPAD_RIGHT_SHOULDER : 0;
 
-  // Copy over remaining analog values
-  gamepad_.bLeftTrigger = input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_LEFT_TRIGGER];
-  gamepad_.bRightTrigger = input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_RIGHT_TRIGGER];
-
   // Secret guide combination: LT + RT + LS + RS
   extern bool guideCombinationEnabled;
   if(guideCombinationEnabled)
     if ((input_prev_.Gamepad.wButtons & OGXINPUT_GAMEPAD_LEFT_THUMB) && (input_prev_.Gamepad.wButtons & OGXINPUT_GAMEPAD_RIGHT_THUMB) &&
-      (gamepad_.bLeftTrigger >= 0x8) && (gamepad_.bRightTrigger >= 0x8))
+      (input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_LEFT_TRIGGER] >= 0x8) && (input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_RIGHT_TRIGGER] >= 0x8))
     {
       gamepad_.wButtons |= XUSB_GAMEPAD_GUIDE;
 
       // Clear combination from the emulated pad, don't want it to interfere with guide:
       gamepad_.wButtons &= ~XUSB_GAMEPAD_LEFT_THUMB;
       gamepad_.wButtons &= ~XUSB_GAMEPAD_RIGHT_THUMB;
-      gamepad_.bLeftTrigger = 0;
-      gamepad_.bRightTrigger = 0;
+      input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_LEFT_TRIGGER] = 0;
+      input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_RIGHT_TRIGGER] = 0;
     }
 
-  // Secret Deadzone combination: (LT + RT + (LS | RS) + D-Pad Up/Down
+  // Secret Deadzone Adjustment Combinations: 
   extern bool deadzoneCombinationEnabled; 
   if(deadzoneCombinationEnabled){
+
+    // Analog Stick Deadzone Adjustment: LT + RT + (LS | RS) + D-Pad Up/Down
     if ((input_prev_.Gamepad.wButtons & OGXINPUT_GAMEPAD_LEFT_THUMB) ^ (input_prev_.Gamepad.wButtons & OGXINPUT_GAMEPAD_RIGHT_THUMB) && // // (LS XOR RS) AND
-    ((gamepad_.bLeftTrigger >= 0x8) && (gamepad_.bRightTrigger >= 0x8)) &&  // Left and Right Trigger AND
+    ((input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_LEFT_TRIGGER] >= 0x8) && (input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_RIGHT_TRIGGER] >= 0x8)) &&  // Left and Right Trigger AND
     (input_prev_.Gamepad.wButtons & (OGXINPUT_GAMEPAD_DPAD_UP | OGXINPUT_GAMEPAD_DPAD_DOWN))) // Direction to change deadzone
     {
       // wait for previous deadzone adjustment button release
@@ -449,12 +456,31 @@ bool XboxController::update()
         short adjustment = (input_prev_.Gamepad.wButtons & OGXINPUT_GAMEPAD_DPAD_UP ? 500 : -500);
 
         if (input_prev_.Gamepad.wButtons & OGXINPUT_GAMEPAD_LEFT_THUMB){
-          deadzone_.sThumbL = max(deadzone_.sThumbL+adjustment,0);
+          deadzone_.sThumbL = min(max(deadzone_.sThumbL+adjustment,0), SHRT_MAX);
         } 
         if (input_prev_.Gamepad.wButtons & OGXINPUT_GAMEPAD_RIGHT_THUMB){
-          deadzone_.sThumbR = max(deadzone_.sThumbR+adjustment,0);
+          deadzone_.sThumbR = min(max(deadzone_.sThumbR+adjustment,0), SHRT_MAX);
         }
 
+        // wait for button release
+        deadzone_.hold = true;
+      }
+
+    // Trigger Deadzone Adjustment: (LT | RT) + LS + RS + D-Pad Up/Down
+    } else if ((input_prev_.Gamepad.wButtons & OGXINPUT_GAMEPAD_LEFT_THUMB) && (input_prev_.Gamepad.wButtons & OGXINPUT_GAMEPAD_RIGHT_THUMB) && // // (LS && RS) AND
+    ((input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_LEFT_TRIGGER] >= 0x8) ^ (input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_RIGHT_TRIGGER] >= 0x8)) &&  // Left XOR Right Trigger AND
+    (input_prev_.Gamepad.wButtons & (OGXINPUT_GAMEPAD_DPAD_UP | OGXINPUT_GAMEPAD_DPAD_DOWN))) // Direction to change deadzone
+    {
+      if(!deadzone_.hold){
+        short adjustment = (input_prev_.Gamepad.wButtons & OGXINPUT_GAMEPAD_DPAD_UP ? 15 : -15);
+        
+        if (input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_LEFT_TRIGGER]){
+          deadzone_.bLeftTrigger = min(max(deadzone_.bLeftTrigger+adjustment,0), 0xFF);
+        }
+        if (input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_RIGHT_TRIGGER]){
+          deadzone_.bRightTrigger = min(max(deadzone_.bRightTrigger+adjustment,0), 0xFF);
+        }
+        
         // wait for button release
         deadzone_.hold = true;
       }
@@ -463,9 +489,17 @@ bool XboxController::update()
       deadzone_.hold = false;
     }
   }
- 
+
+  // Analog Stick Deadzone Calculations
   deadZoneCalc(&gamepad_.sThumbLX, &gamepad_.sThumbLY, input_prev_.Gamepad.sThumbLX, input_prev_.Gamepad.sThumbLY, deadzone_.sThumbL, SHRT_MAX);
   deadZoneCalc(&gamepad_.sThumbRX, &gamepad_.sThumbRY, input_prev_.Gamepad.sThumbRX, input_prev_.Gamepad.sThumbRY, deadzone_.sThumbR, SHRT_MAX);
+
+  // Trigger Deadzone Calculations
+  short triggerbuf;
+  deadZoneCalc(&triggerbuf, NULL, input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_LEFT_TRIGGER], 0, deadzone_.bLeftTrigger, 0xFF);
+  gamepad_.bLeftTrigger = triggerbuf;
+  deadZoneCalc(&triggerbuf, NULL, input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_RIGHT_TRIGGER], 0, deadzone_.bRightTrigger, 0xFF);
+  gamepad_.bRightTrigger = triggerbuf;
 
   // Write gamepad to virtual XInput device
   vigem_target_x360_update(vigem, target_, gamepad_);

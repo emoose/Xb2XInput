@@ -62,6 +62,8 @@ struct XboxOutputReport {
 struct Deadzone {
   short sThumbL;
   short sThumbR;
+  BYTE bLeftTrigger;
+  BYTE bRightTrigger;
   bool hold; 
 };
 

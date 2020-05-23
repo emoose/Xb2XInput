@@ -15,7 +15,7 @@ int poll_ms = (1000 / min(1000, poll_rate));
 // LT + RT + LS + RS to emulate guide button
 bool guideCombinationEnabled = true;
 
-// LT + RT + (LS | RS) + D-Pad Up/Down
+// Analog Stick and Trigger Deadzone Adjustment Enabled
 bool deadzoneCombinationEnabled = true;
 
 // Vibration support
@@ -171,27 +171,28 @@ void SysTrayShowContextMenu()
     InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING | MF_GRAYED, ID_TRAY_CONTROLLER + i, ctl_text);
     i++;
   }
-
   InsertMenu(hPopMenu, 0xFFFFFFFF, MF_SEPARATOR, ID_TRAY_SEP, L"SEP");
   InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING |
     (guideCombinationEnabled ? MF_CHECKED : MF_UNCHECKED), ID_TRAY_GUIDEBTN, L"Enable guide button combination (LT+RT+LS+RS)");
   InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING |
-    (vibrationEnabled ? MF_CHECKED : MF_UNCHECKED), ID_TRAY_VIBING, L"Enable controller vibration");
-  InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING |
-    (StartupIsSet() ? MF_CHECKED : MF_UNCHECKED), ID_TRAY_STARTUP, L"Run on startup");
-  InsertMenu(hPopMenu, 0xFFFFFFFF, MF_SEPARATOR, ID_TRAY_SEP, L"SEP");
-  InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING |
-    (deadzoneCombinationEnabled ? MF_CHECKED : MF_UNCHECKED), ID_TRAY_DEADZONE, L"Enable Deadzone Adjustment (LT+RT+(LS/RS)+DPAD Up/Dn)");
+    (deadzoneCombinationEnabled ? MF_CHECKED : MF_UNCHECKED), ID_TRAY_DEADZONE, L"Enable Deadzone Adjustment:");
+  InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING | MF_GRAYED | MF_UNCHECKED, ID_TRAY_DEADZONE, L"  - Analog Stick (LT+RT+(LS/RS)+DPAD Up/Dn)");
+  InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING | MF_GRAYED | MF_UNCHECKED, ID_TRAY_DEADZONE, L"  - Trigger ((LT/RT)+LS+RS+DPAD Up/Dn)");
 
   // Insert current deadzone adjustments into context menu
   i = 0;
   for (auto& controller : pads) {
     i++;
     auto dz = controller.GetDeadzone();
-    swprintf_s(ctl_text, L"Deadzone %d: L(%d) R(%d)",i, dz.sThumbL, dz.sThumbR);
+    swprintf_s(ctl_text, L"Deadzone %d: LS(%d) RS(%d) LT(%d) RT(%d)",i, dz.sThumbL, dz.sThumbR, dz.bLeftTrigger, dz.bRightTrigger);
     InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING | MF_GRAYED, ID_TRAY_DEADZONE+i, ctl_text);
   }
   
+  InsertMenu(hPopMenu, 0xFFFFFFFF, MF_SEPARATOR, ID_TRAY_SEP, L"SEP");
+  InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING |
+    (vibrationEnabled ? MF_CHECKED : MF_UNCHECKED), ID_TRAY_VIBING, L"Enable controller vibration");
+  InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING |
+    (StartupIsSet() ? MF_CHECKED : MF_UNCHECKED), ID_TRAY_STARTUP, L"Run on startup");
   InsertMenu(hPopMenu, 0xFFFFFFFF, MF_SEPARATOR, ID_TRAY_SEP, L"SEP");
   InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING, ID_TRAY_EXIT, L"Exit");
 
