@@ -107,8 +107,8 @@ libusb_device_handle* XboxController::OpenDevice()
     if (exists)
       continue;
 
-    ret = libusb_open_device_with_vid_pid(NULL, desc.idVendor, desc.idProduct);
-    if (!ret)
+    // open USB device by libusb_device* returned from device list
+    if (libusb_open(devs[i],&ret))
       continue;
 
     auto controller = XboxController(ret, (uint8_t*)&usb_ports, num_ports);
