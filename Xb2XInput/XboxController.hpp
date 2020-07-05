@@ -121,6 +121,8 @@ class XboxController
 
   void SetSetting(const std::string& setting, const std::string& value);
 
+  void SaveDeadzones();
+
 public:
   bool GuideEnabled() { return guide_enabled_; }
   void GuideEnabled(bool value);

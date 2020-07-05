@@ -291,6 +291,11 @@ XboxController::XboxController(libusb_device_handle* handle, uint8_t* usb_ports,
   if (vibration_enabled_)
     VibrationEnabled(vibration_enabled_);
 
+  deadzone_.sThumbL = min(max(GetSettingInt("DeadzoneLeftStick", 0), 0), SHRT_MAX);
+  deadzone_.sThumbR = min(max(GetSettingInt("DeadzoneRightStick", 0), 0), SHRT_MAX);
+  deadzone_.bLeftTrigger = min(max(GetSettingInt("DeadzoneLeftTrigger", 0), 0), 0xFF);
+  deadzone_.bRightTrigger = min(max(GetSettingInt("DeadzoneRightTrigger", 0), 0), 0xFF);
+
   usb_product_ = usb_desc_.idProduct;
   usb_vendor_ = usb_desc_.idVendor;
 }
@@ -479,6 +484,8 @@ bool XboxController::update()
           deadzone_.sThumbR = min(max(deadzone_.sThumbR+adjustment,0), SHRT_MAX);
         }
 
+        SaveDeadzones();
+
         // wait for button release
         deadzone_.hold = true;
       }
@@ -498,6 +505,8 @@ bool XboxController::update()
           deadzone_.bRightTrigger = min(max(deadzone_.bRightTrigger+adjustment,0), 0xFF);
         }
         
+        SaveDeadzones();
+
         // wait for button release
         deadzone_.hold = true;
       }
@@ -554,6 +563,22 @@ void XboxController::VibrationEnabled(bool value)
 {
   vibration_enabled_ = value;
   SetSetting("EnableVibration", value ? "true" : "false");
+}
+
+void XboxController::SaveDeadzones()
+{
+  // WritePrivateProfile can only write strings, bleh
+  if (deadzone_.sThumbL)
+    SetSetting("DeadzoneLeftStick", std::to_string(deadzone_.sThumbL));
+
+  if (deadzone_.sThumbR)
+    SetSetting("DeadzoneRightStick", std::to_string(deadzone_.sThumbR));
+
+  if (deadzone_.bLeftTrigger)
+    SetSetting("DeadzoneLeftTrigger", std::to_string(deadzone_.bLeftTrigger));
+
+  if (deadzone_.bRightTrigger)
+    SetSetting("DeadzoneRightTrigger", std::to_string(deadzone_.bRightTrigger));
 }
 
 int XboxController::GetSettingInt(const std::string& setting, int default_val)
