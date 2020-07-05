@@ -2,8 +2,9 @@
 #include "resource.h"
 #include <string>
 #include <vector>
-#include <map>
+#include <unordered_map>
 #include <mutex>
+#include <sstream>
 #include "XboxController.hpp"
 
 // how many times to check the USB device each second, must be 1000 or lower, higher value = higher CPU usage
@@ -165,9 +166,18 @@ void SysTrayShowContextMenu()
   {
     auto hControllerMenu = CreatePopupMenu();
     InsertMenu(hControllerMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING |
-      (controller.GuideEnabled() ? MF_CHECKED : MF_UNCHECKED), ID_CONTROLLER_GUIDEBTN + i, L"Enable guide button combination");
-    InsertMenu(hControllerMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING |
       (controller.VibrationEnabled() ? MF_CHECKED : MF_UNCHECKED), ID_CONTROLLER_VIBRATION + i, L"Enable vibration/rumble");
+
+    InsertMenu(hControllerMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING |
+      (controller.GuideEnabled() ? MF_CHECKED : MF_UNCHECKED), ID_CONTROLLER_GUIDEBTN + i, L"Enable guide button combination");
+    if (combo_guideButton)
+    {
+      std::string PrintButtonCombination(int combo); // implemented below
+
+      auto combo = "- Combination: " + PrintButtonCombination(combo_guideButton);
+      InsertMenuA(hControllerMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING | MF_GRAYED, ID_TRAY_SEP, combo.c_str());
+    }
+
     InsertMenu(hControllerMenu, 0xFFFFFFFF, MF_SEPARATOR, ID_TRAY_SEP, L"SEP");
 
     // Insert current deadzone adjustments into context menu
@@ -361,27 +371,49 @@ void USBUpdateThread()
 std::thread check_thread;
 std::thread update_thread;
 
-std::map<std::string, int> xinput_buttons =
+std::unordered_map<std::string, int> xinput_buttons =
 {
+  { "LT", XUSB_GAMEPAD_LT },
+  { "RT", XUSB_GAMEPAD_RT },
+
+  { "LB", XUSB_GAMEPAD_LEFT_SHOULDER },
+  { "RB", XUSB_GAMEPAD_RIGHT_SHOULDER },
+
+  { "LS", XUSB_GAMEPAD_LEFT_THUMB },
+  { "RS", XUSB_GAMEPAD_RIGHT_THUMB },
+
   { "UP", XUSB_GAMEPAD_DPAD_UP },
   { "DOWN", XUSB_GAMEPAD_DPAD_DOWN },
   { "LEFT", XUSB_GAMEPAD_DPAD_LEFT },
   { "RIGHT", XUSB_GAMEPAD_DPAD_RIGHT },
-  { "START", XUSB_GAMEPAD_START },
-  { "BACK", XUSB_GAMEPAD_BACK },
-  { "LS", XUSB_GAMEPAD_LEFT_THUMB },
-  { "RS", XUSB_GAMEPAD_RIGHT_THUMB },
-  { "LB", XUSB_GAMEPAD_LEFT_SHOULDER },
-  { "RB", XUSB_GAMEPAD_RIGHT_SHOULDER },
 
   { "A", XUSB_GAMEPAD_A },
   { "B", XUSB_GAMEPAD_B },
   { "X", XUSB_GAMEPAD_X },
   { "Y", XUSB_GAMEPAD_Y },
 
-  { "LT", XUSB_GAMEPAD_LT },
-  { "RT", XUSB_GAMEPAD_RT },
+  { "START", XUSB_GAMEPAD_START },
+  { "BACK", XUSB_GAMEPAD_BACK },
 };
+
+std::string PrintButtonCombination(int combo)
+{
+  std::stringstream ss;
+  for (auto button : xinput_buttons)
+  {
+    if (combo & button.second)
+    {
+      ss << button.first;
+      ss << " + ";
+    }
+  }
+  auto str = ss.str();
+  auto length = str.length();
+  if (length < 3)
+    return str;
+
+  return str.substr(0, length - 3);
+}
 
 int ParseButtonCombination(const char* combo)
 {

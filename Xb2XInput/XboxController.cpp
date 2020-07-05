@@ -23,7 +23,7 @@ std::vector<std::pair<int, int>> xbox_devices =
   {0x06A3, 0x0201}, // Saitek Adrenalin
   {0x0738, 0x4506}, // MadCatz 4506 Wireless Controller
   {0x0738, 0x4516}, // MadCatz Control Pad
-  {0x0738, 0x4520}, // MadCatz Control Pad Pro
+  {0x0738, 0x4520}, // MadCatz MC2 Racing Wheel and Pedals
   {0x0738, 0x4522}, // MadCatz LumiCON (my one, also the one no drivers seem to include out of the box)
   {0x0738, 0x4526}, // MadCatz Control Pad Pro
   {0x0738, 0x4536}, // MadCatz MicroCON
