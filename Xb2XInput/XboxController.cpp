@@ -304,6 +304,56 @@ int XboxController::GetUserIndex() {
   return -1;
 }
 
+int XboxController::deadZoneCalc(short *x_out, short *y_out, short x, short y, short deadzone, short sickzone){
+  // Returns 0 if in deadzone, 1 in sickzone, 2 if passthrough. 
+
+  // Protect from NULL input pointers (used for 1-D deadzone)
+  short dummyvar;
+  if (!x_out){
+    x_out = &dummyvar;
+  }
+  if (!y_out){
+    y_out = &dummyvar;
+  }
+
+  short status;
+  
+  // If no deadzone, pass directly through.
+  if (deadzone == 0){
+    *x_out = x;
+    *y_out = y;
+    return 2;
+  } 
+
+  // convert to polar coordinates
+  int r_in = sqrt(pow(x,2)+pow(y,2));
+  short r_sign = (y >= 0 ? 1 : -1); // For negative Y-axis cartesian coordinates 
+  float theta = acos((float)x/fmax(1.0,r_in));
+  int r_out;
+
+  // Return origin if in Deadzone 
+  if (r_in < deadzone){
+    status = 0;
+    r_out = 0;
+  }
+
+  // Scale to full range over "sickzone" for precision near deadzone
+  // this way output doesn't jump from 0,0 to deadzone limit.
+  else if (r_in < sickzone){ 
+    status = 1;
+    r_out = (float)(r_in - deadzone) / (float)(sickzone - deadzone) * sickzone;
+  } else {
+    status = 2;
+    r_out = r_in;
+  }
+
+  // Convert back to cartesian coordinates for x,y output
+  *x_out = r_out*cos(theta);
+  *y_out = r_sign*r_out*sin(theta);
+
+  return status;
+}
+
 // XboxController::Update: returns false if controller disconnected
 bool XboxController::update()
 {
@@ -377,32 +427,83 @@ bool XboxController::update()
   gamepad_.wButtons |= input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_WHITE] ? XUSB_GAMEPAD_LEFT_SHOULDER : 0;
   gamepad_.wButtons |= input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_BLACK] ? XUSB_GAMEPAD_RIGHT_SHOULDER : 0;
 
-  // Copy over remaining analog values
-  gamepad_.bLeftTrigger = input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_LEFT_TRIGGER];
-  gamepad_.bRightTrigger = input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_RIGHT_TRIGGER];
-
   // Secret guide combination: LT + RT + LS + RS
   extern bool guideCombinationEnabled;
   if(guideCombinationEnabled)
     if ((input_prev_.Gamepad.wButtons & OGXINPUT_GAMEPAD_LEFT_THUMB) && (input_prev_.Gamepad.wButtons & OGXINPUT_GAMEPAD_RIGHT_THUMB) &&
-      (gamepad_.bLeftTrigger >= 0x8) && (gamepad_.bRightTrigger >= 0x8))
+      (input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_LEFT_TRIGGER] >= 0x8) && (input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_RIGHT_TRIGGER] >= 0x8))
     {
       gamepad_.wButtons |= XUSB_GAMEPAD_GUIDE;
 
       // Clear combination from the emulated pad, don't want it to interfere with guide:
       gamepad_.wButtons &= ~XUSB_GAMEPAD_LEFT_THUMB;
       gamepad_.wButtons &= ~XUSB_GAMEPAD_RIGHT_THUMB;
-      gamepad_.bLeftTrigger = 0;
-      gamepad_.bRightTrigger = 0;
+      input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_LEFT_TRIGGER] = 0;
+      input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_RIGHT_TRIGGER] = 0;
     }
 
-  gamepad_.sThumbLX = input_prev_.Gamepad.sThumbLX;
-  gamepad_.sThumbLY = input_prev_.Gamepad.sThumbLY;
-  gamepad_.sThumbRX = input_prev_.Gamepad.sThumbRX;
-  gamepad_.sThumbRY = input_prev_.Gamepad.sThumbRY;
+  // Secret Deadzone Adjustment Combinations: 
+  extern bool deadzoneCombinationEnabled; 
+  if(deadzoneCombinationEnabled){
+
+    // Analog Stick Deadzone Adjustment: LT + RT + (LS | RS) + D-Pad Up/Down
+    if ((input_prev_.Gamepad.wButtons & OGXINPUT_GAMEPAD_LEFT_THUMB) ^ (input_prev_.Gamepad.wButtons & OGXINPUT_GAMEPAD_RIGHT_THUMB) && // // (LS XOR RS) AND
+    ((input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_LEFT_TRIGGER] >= 0x8) && (input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_RIGHT_TRIGGER] >= 0x8)) &&  // Left and Right Trigger AND
+    (input_prev_.Gamepad.wButtons & (OGXINPUT_GAMEPAD_DPAD_UP | OGXINPUT_GAMEPAD_DPAD_DOWN))) // Direction to change deadzone
+    {
+      // wait for previous deadzone adjustment button release
+      if (!deadzone_.hold){ 
+        short adjustment = (input_prev_.Gamepad.wButtons & OGXINPUT_GAMEPAD_DPAD_UP ? 500 : -500);
+
+        if (input_prev_.Gamepad.wButtons & OGXINPUT_GAMEPAD_LEFT_THUMB){
+          deadzone_.sThumbL = min(max(deadzone_.sThumbL+adjustment,0), SHRT_MAX);
+        } 
+        if (input_prev_.Gamepad.wButtons & OGXINPUT_GAMEPAD_RIGHT_THUMB){
+          deadzone_.sThumbR = min(max(deadzone_.sThumbR+adjustment,0), SHRT_MAX);
+        }
+
+        // wait for button release
+        deadzone_.hold = true;
+      }
+
+    // Trigger Deadzone Adjustment: (LT | RT) + LS + RS + D-Pad Up/Down
+    } else if ((input_prev_.Gamepad.wButtons & OGXINPUT_GAMEPAD_LEFT_THUMB) && (input_prev_.Gamepad.wButtons & OGXINPUT_GAMEPAD_RIGHT_THUMB) && // // (LS && RS) AND
+    ((input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_LEFT_TRIGGER] >= 0x8) ^ (input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_RIGHT_TRIGGER] >= 0x8)) &&  // Left XOR Right Trigger AND
+    (input_prev_.Gamepad.wButtons & (OGXINPUT_GAMEPAD_DPAD_UP | OGXINPUT_GAMEPAD_DPAD_DOWN))) // Direction to change deadzone
+    {
+      if(!deadzone_.hold){
+        short adjustment = (input_prev_.Gamepad.wButtons & OGXINPUT_GAMEPAD_DPAD_UP ? 15 : -15);
+        
+        if (input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_LEFT_TRIGGER]){
+          deadzone_.bLeftTrigger = min(max(deadzone_.bLeftTrigger+adjustment,0), 0xFF);
+        }
+        if (input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_RIGHT_TRIGGER]){
+          deadzone_.bRightTrigger = min(max(deadzone_.bRightTrigger+adjustment,0), 0xFF);
+        }
+        
+        // wait for button release
+        deadzone_.hold = true;
+      }
+    } else {
+      // reset button release
+      deadzone_.hold = false;
+    }
+  }
+
+  // Analog Stick Deadzone Calculations
+  deadZoneCalc(&gamepad_.sThumbLX, &gamepad_.sThumbLY, input_prev_.Gamepad.sThumbLX, input_prev_.Gamepad.sThumbLY, deadzone_.sThumbL, SHRT_MAX);
+  deadZoneCalc(&gamepad_.sThumbRX, &gamepad_.sThumbRY, input_prev_.Gamepad.sThumbRX, input_prev_.Gamepad.sThumbRY, deadzone_.sThumbR, SHRT_MAX);
+
+  // Trigger Deadzone Calculations
+  short triggerbuf;
+  deadZoneCalc(&triggerbuf, NULL, input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_LEFT_TRIGGER], 0, deadzone_.bLeftTrigger, 0xFF);
+  gamepad_.bLeftTrigger = triggerbuf;
+  deadZoneCalc(&triggerbuf, NULL, input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_RIGHT_TRIGGER], 0, deadzone_.bRightTrigger, 0xFF);
+  gamepad_.bRightTrigger = triggerbuf;
 
   // Write gamepad to virtual XInput device
   vigem_target_x360_update(vigem, target_, gamepad_);
 
   return true;
 }
+

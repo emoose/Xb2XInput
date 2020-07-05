@@ -55,6 +55,11 @@ By default this button combination will be enabled, but if desired you can easil
 
 (right now you'll have to disable the combination manually each time XB2X is ran, but hopefully in future we can store your preference somewhere instead)
 
+#### Deadzone settings
+Similarly to the Guide button emulation, use the LT+RT+(LS/RS)+DPAD Up/Dn combinaiton for analog stick deadzone and (LT/RT)+LS+RS+DPAD Up/Dn for trigger deadzone adjustment. The deadzone may be set individually on each controller. The current deadzones will be displayed in the context menu each time it is displayed (not live updating). For example, to increase the left analog stick deadzone radius use the button combination LT+RT+LS+DPAD Up (Keep pressing DPAD Up while holding LT+RT+LS to increase by increments of 500). A setting of 3500-4000 works well on my XBOX Controller v2 (US), but ymmv. Xb2XInput does remap the remaining useable range of the axes from origin to max extent. To disable the deadzone button combination, deselect the option through the system tray menu. The deadzone will remain active if the button combination is disabled.
+
+(right now you'll have to set the deadzone manually each time XB2X is ran, but hopefully in future we can store your preference somewhere instead)
+
 #### Vibration toggle
 In case you wish to disable your controllers vibration function, eg. if a game has issues with it, or your controller has problems with the motors, you can also do this through the context-menu.
 

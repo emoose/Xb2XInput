@@ -58,6 +58,15 @@ struct XboxOutputReport {
 
   OGXINPUT_RUMBLE Rumble;
 };
+
+struct Deadzone {
+  short sThumbL;
+  short sThumbR;
+  BYTE bLeftTrigger;
+  BYTE bRightTrigger;
+  bool hold; 
+};
+
 #pragma pack(pop)
 
 #define HID_GET_REPORT                0x01
@@ -90,6 +99,9 @@ class XboxController
   uint8_t endpoint_in_ = 0;
   uint8_t endpoint_out_ = 0;
 
+  Deadzone deadzone_ = {0};
+  int deadZoneCalc(short *x_out, short *y_out, short x, short y, short deadzone, short sickzone);
+
   bool update();
 public:
   XboxController(libusb_device_handle* handle, uint8_t* usb_ports, int num_ports);
@@ -98,7 +110,8 @@ public:
   int GetVendorId() const { return usb_vendor_; }
   const char* GetProductName() const { return usb_productname_; }
   const char* GetVendorName() const { return usb_vendorname_; }
-
+  Deadzone GetDeadzone() { return deadzone_; }
+  
   int GetControllerIndex()
   { 
     if (!target_)
