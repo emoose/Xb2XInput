@@ -28,6 +28,11 @@
 #define OGXINPUT_GAMEPAD_LEFT_TRIGGER     6
 #define OGXINPUT_GAMEPAD_RIGHT_TRIGGER    7
 
+// Used for button combination parsing/checking
+// See Xb2XInput.cpp -> xinput_buttons map
+#define XUSB_GAMEPAD_LT (XUSB_GAMEPAD_Y << 1)
+#define XUSB_GAMEPAD_RT (XUSB_GAMEPAD_Y << 2)
+
 #pragma pack(push, 1)
 typedef struct _OGXINPUT_RUMBLE
 {
@@ -87,6 +92,9 @@ class XboxController
   libusb_device_descriptor usb_desc_;
   char usb_productname_[128];
   char usb_vendorname_[128];
+  char usb_serialno_[128];
+  
+  std::string ini_key_; // key-name to use when loading settings from config ini
 
   bool closing_ = false;
 
@@ -102,14 +110,31 @@ class XboxController
   Deadzone deadzone_ = {0};
   int deadZoneCalc(short *x_out, short *y_out, short x, short y, short deadzone, short sickzone);
 
+  bool guide_enabled_ = false;
+  bool vibration_enabled_ = false;
+
   bool update();
+
+  int GetSettingInt(const std::string& setting, int default_val);
+  std::string GetSettingString(const std::string& setting, const std::string& default_val);
+  bool GetSettingBool(const std::string& setting, bool default_val);
+
+  void SetSetting(const std::string& setting, const std::string& value);
+
 public:
+  bool GuideEnabled() { return guide_enabled_; }
+  void GuideEnabled(bool value);
+
+  bool VibrationEnabled() { return vibration_enabled_; }
+  void VibrationEnabled(bool value);
+
   XboxController(libusb_device_handle* handle, uint8_t* usb_ports, int num_ports);
   ~XboxController();
   int GetProductId() const { return usb_product_; }
   int GetVendorId() const { return usb_vendor_; }
   const char* GetProductName() const { return usb_productname_; }
   const char* GetVendorName() const { return usb_vendorname_; }
+  const char* GetSerialNo() const { return usb_serialno_; }
   Deadzone GetDeadzone() { return deadzone_; }
   
   int GetControllerIndex()
@@ -125,7 +150,7 @@ public:
   static void UpdateAll();
   static void Close();
   static libusb_device_handle* OpenDevice();
-  static const std::vector<XboxController>& GetControllers();
+  static std::vector<XboxController>& GetControllers();
 
   static void CALLBACK OnVigemNotification(
     PVIGEM_CLIENT Client,

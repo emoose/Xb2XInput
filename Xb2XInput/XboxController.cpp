@@ -2,6 +2,8 @@
 #include "XboxController.hpp"
 #include <vector>
 #include <mutex>
+#include <sstream>
+#include <iomanip>
 
 std::vector<std::pair<int, int>> xbox_devices =
 {
@@ -49,7 +51,14 @@ std::vector<std::pair<int, int>> xbox_devices =
   {0xFFFF, 0xFFFF}, // PowerWave Xbox Controller (The ID's may look sketchy but this controller actually uses it)
 };
 
-void USBDeviceChanged(const XboxController& controller, bool added); // from Xb2XInput.cpp
+// Xb2XInput.cpp externs
+void USBDeviceChanged(const XboxController& controller, bool added);
+extern char ini_path[4096];
+extern int poll_ms;
+
+extern int combo_guideButton;
+extern int combo_deadzoneIncrease;
+extern int combo_deadzoneDecrease;
 
 void dbgprintf(const char* format, ...)
 {
@@ -192,7 +201,7 @@ void XboxController::Close()
   vigem_free(vigem);
 }
 
-const std::vector<XboxController>& XboxController::GetControllers()
+std::vector<XboxController>& XboxController::GetControllers()
 {
   return controllers_;
 }
@@ -200,6 +209,7 @@ const std::vector<XboxController>& XboxController::GetControllers()
 XboxController::XboxController(libusb_device_handle* handle, uint8_t* usb_ports, int num_ports) : usb_handle_(handle) {
   usb_productname_[0] = 0;
   usb_vendorname_[0] = 0;
+  usb_serialno_[0] = 0;
 
   usb_ports_.resize(num_ports);
   memcpy(usb_ports_.data(), usb_ports, num_ports);
@@ -255,6 +265,31 @@ XboxController::XboxController(libusb_device_handle* handle, uint8_t* usb_ports,
 
   libusb_get_string_descriptor_ascii(handle, usb_desc_.iProduct, (unsigned char*)usb_productname_, sizeof(usb_productname_));
   libusb_get_string_descriptor_ascii(handle, usb_desc_.iManufacturer, (unsigned char*)usb_vendorname_, sizeof(usb_vendorname_));
+  libusb_get_string_descriptor_ascii(handle, usb_desc_.iSerialNumber, (unsigned char*)usb_serialno_, sizeof(usb_serialno_));
+
+  // Use serial no. as INI key if controller has one, else VID/PID
+  std::stringstream ss;
+  if (strlen(usb_serialno_))
+    ss << usb_serialno_;
+  else
+  {
+    ss << std::setfill('0') << std::setw(4) <<
+      std::hex << usb_desc_.idVendor;
+    ss << ':';
+    ss << std::setfill('0') << std::setw(4) <<
+      std::hex << usb_desc_.idProduct;
+  }
+
+  ini_key_ = ss.str();
+
+  // Read in INI settings for this controller
+  guide_enabled_ = GetSettingBool("EnableGuide", true);
+  if (guide_enabled_)
+    GuideEnabled(guide_enabled_); // write setting to ini if this == default, in case it didn't already exist
+
+  vibration_enabled_ = GetSettingBool("EnableVibration", true);
+  if (vibration_enabled_)
+    VibrationEnabled(vibration_enabled_);
 
   usb_product_ = usb_desc_.idProduct;
   usb_vendor_ = usb_desc_.idVendor;
@@ -273,11 +308,8 @@ void CALLBACK XboxController::OnVigemNotification(PVIGEM_CLIENT Client, PVIGEM_T
     if (controller.target_ != Target)
       continue;
 
-    extern bool vibrationEnabled;
-    if (!vibrationEnabled)
-    {
+    if (!controller.vibration_enabled_)
       LargeMotor = SmallMotor = 0;
-    }
 
     memset(&controller.output_prev_, 0, sizeof(XboxOutputReport));
     controller.output_prev_.bSize = sizeof(XboxOutputReport);
@@ -427,21 +459,6 @@ bool XboxController::update()
   gamepad_.wButtons |= input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_WHITE] ? XUSB_GAMEPAD_LEFT_SHOULDER : 0;
   gamepad_.wButtons |= input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_BLACK] ? XUSB_GAMEPAD_RIGHT_SHOULDER : 0;
 
-  // Secret guide combination: LT + RT + LS + RS
-  extern bool guideCombinationEnabled;
-  if(guideCombinationEnabled)
-    if ((input_prev_.Gamepad.wButtons & OGXINPUT_GAMEPAD_LEFT_THUMB) && (input_prev_.Gamepad.wButtons & OGXINPUT_GAMEPAD_RIGHT_THUMB) &&
-      (input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_LEFT_TRIGGER] >= 0x8) && (input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_RIGHT_TRIGGER] >= 0x8))
-    {
-      gamepad_.wButtons |= XUSB_GAMEPAD_GUIDE;
-
-      // Clear combination from the emulated pad, don't want it to interfere with guide:
-      gamepad_.wButtons &= ~XUSB_GAMEPAD_LEFT_THUMB;
-      gamepad_.wButtons &= ~XUSB_GAMEPAD_RIGHT_THUMB;
-      input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_LEFT_TRIGGER] = 0;
-      input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_RIGHT_TRIGGER] = 0;
-    }
-
   // Secret Deadzone Adjustment Combinations: 
   extern bool deadzoneCombinationEnabled; 
   if(deadzoneCombinationEnabled){
@@ -501,9 +518,67 @@ bool XboxController::update()
   deadZoneCalc(&triggerbuf, NULL, input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_RIGHT_TRIGGER], 0, deadzone_.bRightTrigger, 0xFF);
   gamepad_.bRightTrigger = triggerbuf;
 
+  // Create a 'digital' bitfield so we can test combinations against LT/RT
+  int digitalPressed = gamepad_.wButtons;
+  if (gamepad_.bLeftTrigger >= 0x8)
+    digitalPressed |= XUSB_GAMEPAD_LT;
+  if (gamepad_.bRightTrigger >= 0x8)
+    digitalPressed |= XUSB_GAMEPAD_RT;
+
+  // Secret guide combination
+  if (combo_guideButton && (digitalPressed & combo_guideButton) == combo_guideButton)
+  {
+    gamepad_.wButtons |= XUSB_GAMEPAD_GUIDE;
+
+    // Clear combination from the emulated pad, don't want it to interfere with anything
+    gamepad_.wButtons &= ~((USHORT)combo_guideButton);
+    if (combo_guideButton & XUSB_GAMEPAD_LT)
+      gamepad_.bLeftTrigger = 0;
+    if (combo_guideButton & XUSB_GAMEPAD_RT)
+      gamepad_.bRightTrigger = 0;
+  }
+
   // Write gamepad to virtual XInput device
   vigem_target_x360_update(vigem, target_, gamepad_);
 
   return true;
 }
+
+void XboxController::GuideEnabled(bool value)
+{
+  guide_enabled_ = value;
+  SetSetting("EnableGuide", value ? "true" : "false");
+}
+
+void XboxController::VibrationEnabled(bool value)
+{
+  vibration_enabled_ = value;
+  SetSetting("EnableVibration", value ? "true" : "false");
+}
+
+int XboxController::GetSettingInt(const std::string& setting, int default_val)
+{
+  return GetPrivateProfileIntA(ini_key_.c_str(), setting.c_str(), default_val, ini_path);
+}
+
+std::string XboxController::GetSettingString(const std::string& setting, const std::string& default_val)
+{
+  char result[256];
+
+  GetPrivateProfileStringA(ini_key_.c_str(), setting.c_str(), default_val.c_str(), result, 256, ini_path);
+
+  return result;
+}
+
+bool XboxController::GetSettingBool(const std::string& setting, bool default_val)
+{
+  auto res = GetSettingString(setting, default_val ? "true" : "false");
+  return res == "true" || res == "TRUE" || res == "yes" || res == "YES" || res == "1" || res == "Y";
+}
+
+void XboxController::SetSetting(const std::string& setting, const std::string& value)
+{
+  WritePrivateProfileStringA(ini_key_.c_str(), setting.c_str(), value.c_str(), ini_path);
+}
+
 

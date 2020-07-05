@@ -2,6 +2,7 @@
 #include "resource.h"
 #include <string>
 #include <vector>
+#include <map>
 #include <mutex>
 #include "XboxController.hpp"
 
@@ -12,14 +13,14 @@ const int poll_rate = 144;
 
 int poll_ms = (1000 / min(1000, poll_rate));
 
-// LT + RT + LS + RS to emulate guide button
-bool guideCombinationEnabled = true;
-
 // Analog Stick and Trigger Deadzone Adjustment Enabled
 bool deadzoneCombinationEnabled = true;
 
-// Vibration support
-bool vibrationEnabled = true;
+// Path of our config INI, based on EXE path
+char ini_path[4096];
+
+// button bitmask for guide combination
+int combo_guideButton = 0;
 
 WCHAR title[256];
 bool usb_end = false;
@@ -120,9 +121,11 @@ bool StartupDeleteEntry()
 #define ID_TRAY_SEP 5003
 #define ID_TRAY_EXIT 5004
 #define ID_TRAY_CONTROLLER 5006
-#define ID_TRAY_GUIDEBTN 5007
-#define ID_TRAY_VIBING 5008
 #define ID_TRAY_DEADZONE 5100
+
+// lower 12 bits are controller index into XboxController::controllers_
+#define ID_CONTROLLER_GUIDEBTN  0x2000
+#define ID_CONTROLLER_VIBRATION 0x4000
 
 WCHAR tray_text[128];
 
@@ -155,42 +158,46 @@ void SysTrayShowContextMenu()
 
   HMENU hPopMenu = CreatePopupMenu();
   InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING | MF_GRAYED, ID_TRAY_NAME, tray_text);
-  auto pads = XboxController::GetControllers();
+  auto& pads = XboxController::GetControllers();
   wchar_t ctl_text[128];
   int i = 0;
   for (auto& controller : pads)
   {
+    auto hControllerMenu = CreatePopupMenu();
+    InsertMenu(hControllerMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING |
+      (controller.GuideEnabled() ? MF_CHECKED : MF_UNCHECKED), ID_CONTROLLER_GUIDEBTN + i, L"Enable guide button combination");
+    InsertMenu(hControllerMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING |
+      (controller.VibrationEnabled() ? MF_CHECKED : MF_UNCHECKED), ID_CONTROLLER_VIBRATION + i, L"Enable vibration/rumble");
+    InsertMenu(hControllerMenu, 0xFFFFFFFF, MF_SEPARATOR, ID_TRAY_SEP, L"SEP");
+
+    // Insert current deadzone adjustments into context menu
+    auto dz = controller.GetDeadzone();
+    swprintf_s(ctl_text, L"Deadzone: LS(%d) RS(%d) LT(%d) RT(%d)", dz.sThumbL, dz.sThumbR, dz.bLeftTrigger, dz.bRightTrigger);
+    InsertMenu(hControllerMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING | MF_GRAYED, ID_TRAY_DEADZONE + i, ctl_text);
+
     const char* usb_productname = controller.GetProductName();
     std::string productname;
     if (strlen(usb_productname) > 0)
       productname = std::string(" (") + std::string(usb_productname) + std::string(")");
 
-    swprintf_s(ctl_text, L"%d: %04X:%04X%S", controller.GetControllerIndex(),
+    auto serialNo = controller.GetSerialNo();
+    if(strlen(serialNo))
+      swprintf_s(ctl_text, L"%d: %04X:%04X%S (#%S)", controller.GetControllerIndex(),
+        controller.GetVendorId(), controller.GetProductId(), productname.c_str(), serialNo);
+    else
+      swprintf_s(ctl_text, L"%d: %04X:%04X%S", controller.GetControllerIndex(),
       controller.GetVendorId(), controller.GetProductId(), productname.c_str());
 
-    InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING | MF_GRAYED, ID_TRAY_CONTROLLER + i, ctl_text);
+    InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING | MF_POPUP, (UINT_PTR)hControllerMenu, ctl_text);
     i++;
   }
   InsertMenu(hPopMenu, 0xFFFFFFFF, MF_SEPARATOR, ID_TRAY_SEP, L"SEP");
-  InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING |
-    (guideCombinationEnabled ? MF_CHECKED : MF_UNCHECKED), ID_TRAY_GUIDEBTN, L"Enable guide button combination (LT+RT+LS+RS)");
   InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING |
     (deadzoneCombinationEnabled ? MF_CHECKED : MF_UNCHECKED), ID_TRAY_DEADZONE, L"Enable Deadzone Adjustment:");
   InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING | MF_GRAYED | MF_UNCHECKED, ID_TRAY_DEADZONE, L"  - Analog Stick (LT+RT+(LS/RS)+DPAD Up/Dn)");
   InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING | MF_GRAYED | MF_UNCHECKED, ID_TRAY_DEADZONE, L"  - Trigger ((LT/RT)+LS+RS+DPAD Up/Dn)");
-
-  // Insert current deadzone adjustments into context menu
-  i = 0;
-  for (auto& controller : pads) {
-    i++;
-    auto dz = controller.GetDeadzone();
-    swprintf_s(ctl_text, L"Deadzone %d: LS(%d) RS(%d) LT(%d) RT(%d)",i, dz.sThumbL, dz.sThumbR, dz.bLeftTrigger, dz.bRightTrigger);
-    InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING | MF_GRAYED, ID_TRAY_DEADZONE+i, ctl_text);
-  }
   
   InsertMenu(hPopMenu, 0xFFFFFFFF, MF_SEPARATOR, ID_TRAY_SEP, L"SEP");
-  InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING |
-    (vibrationEnabled ? MF_CHECKED : MF_UNCHECKED), ID_TRAY_VIBING, L"Enable controller vibration");
   InsertMenu(hPopMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING |
     (StartupIsSet() ? MF_CHECKED : MF_UNCHECKED), ID_TRAY_STARTUP, L"Run on startup");
   InsertMenu(hPopMenu, 0xFFFFFFFF, MF_SEPARATOR, ID_TRAY_SEP, L"SEP");
@@ -215,28 +222,39 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     break;
   case WM_COMMAND:
     wmId = LOWORD(wParam);
-    switch (wmId)
+
+    if (wmId & ID_CONTROLLER_GUIDEBTN || wmId & ID_CONTROLLER_VIBRATION)
     {
-    case ID_TRAY_EXIT:
-      DestroyWindow(hWnd);
-      break;
-    case ID_TRAY_STARTUP:
-      if (StartupIsSet())
-        StartupDeleteEntry();
-      else
-        StartupCreateEntry();
-      break;
-    case ID_TRAY_GUIDEBTN:
-      guideCombinationEnabled = !guideCombinationEnabled;
-      break;
-    case ID_TRAY_DEADZONE:
-      deadzoneCombinationEnabled = !deadzoneCombinationEnabled;
-      break;
-    case ID_TRAY_VIBING:
-      vibrationEnabled = !vibrationEnabled;
-      break;
-    default:
-      return DefWindowProc(hWnd, message, wParam, lParam);
+      auto controllerId = wmId & 0xFFF;
+      auto& pads = XboxController::GetControllers();
+      if (pads.size() > controllerId)
+      {
+        auto& controller = pads[controllerId];
+        if (wmId & ID_CONTROLLER_GUIDEBTN)
+          controller.GuideEnabled(!controller.GuideEnabled());
+        if (wmId & ID_CONTROLLER_VIBRATION)
+          controller.VibrationEnabled(!controller.VibrationEnabled());
+      }
+    }
+    else
+    {
+      switch (wmId)
+      {
+      case ID_TRAY_EXIT:
+        DestroyWindow(hWnd);
+        break;
+      case ID_TRAY_STARTUP:
+        if (StartupIsSet())
+          StartupDeleteEntry();
+        else
+          StartupCreateEntry();
+        break;
+      case ID_TRAY_DEADZONE:
+        deadzoneCombinationEnabled = !deadzoneCombinationEnabled;
+        break;
+      default:
+        return DefWindowProc(hWnd, message, wParam, lParam);
+      }
     }
     break;
   case WM_DESTROY:
@@ -343,11 +361,80 @@ void USBUpdateThread()
 std::thread check_thread;
 std::thread update_thread;
 
+std::map<std::string, int> xinput_buttons =
+{
+  { "UP", XUSB_GAMEPAD_DPAD_UP },
+  { "DOWN", XUSB_GAMEPAD_DPAD_DOWN },
+  { "LEFT", XUSB_GAMEPAD_DPAD_LEFT },
+  { "RIGHT", XUSB_GAMEPAD_DPAD_RIGHT },
+  { "START", XUSB_GAMEPAD_START },
+  { "BACK", XUSB_GAMEPAD_BACK },
+  { "LS", XUSB_GAMEPAD_LEFT_THUMB },
+  { "RS", XUSB_GAMEPAD_RIGHT_THUMB },
+  { "LB", XUSB_GAMEPAD_LEFT_SHOULDER },
+  { "RB", XUSB_GAMEPAD_RIGHT_SHOULDER },
+
+  { "A", XUSB_GAMEPAD_A },
+  { "B", XUSB_GAMEPAD_B },
+  { "X", XUSB_GAMEPAD_X },
+  { "Y", XUSB_GAMEPAD_Y },
+
+  { "LT", XUSB_GAMEPAD_LT },
+  { "RT", XUSB_GAMEPAD_RT },
+};
+
+int ParseButtonCombination(const char* combo)
+{
+  int len = strlen(combo);
+
+  int retval = 0;
+  std::string cur_token;
+
+  // Parse combo tokens into buttons bitfield (tokens seperated by any non-alphabetical char, eg. +)
+  for (int i = 0; i < len; i++)
+  {
+    char c = combo[i];
+
+    if (!isalpha(c))
+    {
+      if (cur_token.length() && xinput_buttons.count(cur_token))
+        retval |= xinput_buttons[cur_token];
+
+      cur_token.clear();
+      continue;
+    }
+    cur_token += ::toupper(c);
+  }
+
+  if (cur_token.length() && xinput_buttons.count(cur_token))
+    retval |= xinput_buttons[cur_token];
+
+  return retval;
+}
+
 int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
   _In_opt_ HINSTANCE hPrevInstance,
   _In_ LPTSTR    lpCmdLine,
   _In_ int       nCmdShow)
 {
+  // Ini path based on executable filename
+  int len = GetModuleFileNameA(NULL, ini_path, sizeof(ini_path));
+  ini_path[len - 3] = 'i';
+  ini_path[len - 2] = 'n';
+  ini_path[len - 1] = 'i';
+
+  // Read in & parse any button combinations from our INI
+  char* guideComboDefault = "LT + RT + LS + RS";
+  char guideCombo[256];
+
+  int ret = GetPrivateProfileStringA("Combinations", "GuideButton", guideComboDefault, guideCombo, 256, ini_path);
+
+  // Write out to INI & create it for us if it doesn't exist
+  if (GetFileAttributesA(ini_path) == -1)
+    WritePrivateProfileStringA("Combinations", "GuideButton", guideCombo, ini_path);
+
+  combo_guideButton = ParseButtonCombination(guideCombo);
+
   instance = hInstance;
   wcscpy_s(title, L"Xb2XInput");
   swprintf_s(tray_text, L"Xb2XInput - waiting for controller");
