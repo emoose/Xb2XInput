@@ -247,8 +247,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     lmId = LOWORD(lParam);
     switch (lmId)
     {
-    case WM_RBUTTONDOWN:
-    case WM_LBUTTONDOWN:
+    case WM_RBUTTONUP:
+    case WM_LBUTTONUP:
       SysTrayShowContextMenu();
       break;
     }
