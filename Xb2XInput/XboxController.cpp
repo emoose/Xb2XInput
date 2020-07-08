@@ -161,7 +161,7 @@ UserSettings XboxController::LoadSettings(const std::string& ini_key, bool use_d
   defaultVal = use_defaults ? defaults_.vibration_enabled : false;
   ret.vibration_enabled = GetSettingBool("EnableVibration", defaultVal, ini_key);
 
-  if (ret.vibration_enabled) // write setting to ini if this == default, in case it didn't already exist
+  if (ret.vibration_enabled == defaultVal) // write setting to ini if this == default, in case it didn't already exist
     SetSetting("EnableVibration", defaultVal ? "true" : "false", ini_key); // write setting to ini if this == default, in case it didn't already exist
 
   ret.deadzone.sThumbL = min(max(GetSettingInt("DeadzoneLeftStick", use_defaults ? defaults_.deadzone.sThumbL : 0, ini_key), 0), SHRT_MAX);
