@@ -51,6 +51,8 @@ std::vector<std::pair<int, int>> xbox_devices =
   {0xFFFF, 0xFFFF}, // PowerWave Xbox Controller (The ID's may look sketchy but this controller actually uses it)
 };
 
+UserSettings defaults_;
+
 // Xb2XInput.cpp externs
 void USBDeviceChanged(const XboxController& controller, bool added);
 extern char ini_path[4096];
@@ -146,11 +148,76 @@ libusb_device_handle* XboxController::OpenDevice()
   return ret;
 }
 
+UserSettings XboxController::LoadSettings(const std::string& ini_key, bool use_defaults)
+{
+  UserSettings ret;
+
+  bool defaultVal = use_defaults ? defaults_.guide_enabled : true;
+  ret.guide_enabled = GetSettingBool("EnableGuide", defaultVal, ini_key);
+
+  if (ret.guide_enabled == defaultVal) // write setting to ini if this == default, in case it didn't already exist
+    SetSetting("EnableGuide", defaultVal ? "true" : "false", ini_key);
+
+  defaultVal = use_defaults ? defaults_.vibration_enabled : false;
+  ret.vibration_enabled = GetSettingBool("EnableVibration", defaultVal, ini_key);
+
+  if (ret.vibration_enabled) // write setting to ini if this == default, in case it didn't already exist
+    SetSetting("EnableVibration", defaultVal ? "true" : "false", ini_key); // write setting to ini if this == default, in case it didn't already exist
+
+  ret.deadzone.sThumbL = min(max(GetSettingInt("DeadzoneLeftStick", use_defaults ? defaults_.deadzone.sThumbL : 0, ini_key), 0), SHRT_MAX);
+  ret.deadzone.sThumbR = min(max(GetSettingInt("DeadzoneRightStick", use_defaults ? defaults_.deadzone.sThumbR : 0, ini_key), 0), SHRT_MAX);
+  ret.deadzone.bLeftTrigger = min(max(GetSettingInt("DeadzoneLeftTrigger", use_defaults ? defaults_.deadzone.bLeftTrigger : 0, ini_key), 0), 0xFF);
+  ret.deadzone.bRightTrigger = min(max(GetSettingInt("DeadzoneRightTrigger", use_defaults ? defaults_.deadzone.bRightTrigger : 0, ini_key), 0), 0xFF);
+
+  ret.button_remap.clear();
+  if (use_defaults && defaults_.remap_enabled)
+    ret.button_remap = defaults_.button_remap;
+
+  if (GetSettingBool("RemapEnable", use_defaults ? defaults_.remap_enabled : false, ini_key))
+  {
+    std::string remap;
+
+    int ParseButtonCombination(const char* combo); // Xb2XInput.cpp
+
+    // TODO: if RemapEnable, should we SetSetting for all of these so INI is populated with the proper Remap* settings?
+#define LoadMap(btn) \
+    remap = GetSettingString("Remap" #btn, "", ini_key); \
+    if (remap.length()) \
+    { \
+      int combo = ParseButtonCombination(remap.c_str()); \
+      if (combo) \
+        ret.button_remap[XUSB_GAMEPAD_##btn] = combo; \
+    }
+
+    LoadMap(A);
+    LoadMap(B);
+    LoadMap(X);
+    LoadMap(Y);
+    LoadMap(Start);
+    LoadMap(Back);
+    LoadMap(LS);
+    LoadMap(RS);
+    LoadMap(Black);
+    LoadMap(White);
+    LoadMap(DpadUp);
+    LoadMap(DpadDown);
+    LoadMap(DpadLeft);
+    LoadMap(DpadRight);
+
+#undef LoadMap
+  }
+
+  return ret;
+}
+
 bool XboxController::Initialize(WCHAR* app_title)
 {
   static bool inited = false;
   if (inited)
     return true;
+
+  // Load default INI settings
+  defaults_ = LoadSettings("Default", false);
 
   // Init libusb & ViGEm
   auto ret = libusb_init(NULL);
@@ -296,51 +363,7 @@ XboxController::XboxController(libusb_device_handle* handle, uint8_t* usb_ports,
   ini_key_ = ss.str();
 
   // Read in INI settings for this controller
-  guide_enabled_ = GetSettingBool("EnableGuide", true);
-  if (guide_enabled_)
-    GuideEnabled(guide_enabled_); // write setting to ini if this == default, in case it didn't already exist
-
-  vibration_enabled_ = GetSettingBool("EnableVibration", true);
-  if (vibration_enabled_)
-    VibrationEnabled(vibration_enabled_);
-
-  deadzone_.sThumbL = min(max(GetSettingInt("DeadzoneLeftStick", 0), 0), SHRT_MAX);
-  deadzone_.sThumbR = min(max(GetSettingInt("DeadzoneRightStick", 0), 0), SHRT_MAX);
-  deadzone_.bLeftTrigger = min(max(GetSettingInt("DeadzoneLeftTrigger", 0), 0), 0xFF);
-  deadzone_.bRightTrigger = min(max(GetSettingInt("DeadzoneRightTrigger", 0), 0), 0xFF);
-
-  button_remap_.clear();
-  if (GetSettingBool("RemapEnable", false))
-  {
-    std::string remap;
-
-    int ParseButtonCombination(const char* combo);
-#define LoadMap(btn) \
-    remap = GetSettingString("Remap" #btn, ""); \
-    if (remap.length()) \
-    { \
-      int combo = ParseButtonCombination(remap.c_str()); \
-      if (combo) \
-        button_remap_[XUSB_GAMEPAD_##btn] = combo; \
-    }
-
-    LoadMap(A);
-    LoadMap(B);
-    LoadMap(X);
-    LoadMap(Y);
-    LoadMap(Start);
-    LoadMap(Back);
-    LoadMap(LS);
-    LoadMap(RS);
-    LoadMap(Black);
-    LoadMap(White);
-    LoadMap(DpadUp);
-    LoadMap(DpadDown);
-    LoadMap(DpadLeft);
-    LoadMap(DpadRight);
-
-#undef LoadMap
-  }
+  settings_ = LoadSettings(ini_key_, true);
 
   usb_product_ = usb_desc_.idProduct;
   usb_vendor_ = usb_desc_.idVendor;
@@ -359,7 +382,7 @@ void CALLBACK XboxController::OnVigemNotification(PVIGEM_CLIENT Client, PVIGEM_T
     if (controller.target_ != Target)
       continue;
 
-    if (!controller.vibration_enabled_)
+    if (!controller.settings_.vibration_enabled)
       LargeMotor = SmallMotor = 0;
 
     memset(&controller.output_prev_, 0, sizeof(XboxOutputReport));
@@ -469,7 +492,6 @@ bool XboxController::update()
   int length = 0;
   int ret = -1;
 
-
   // if we have interrupt endpoints use those for better compatibility, otherwise fallback to control transfers
   if (endpoint_in_)
   {
@@ -510,7 +532,7 @@ bool XboxController::update()
   gamepad_.wButtons |= input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_WHITE] ? XUSB_GAMEPAD_LEFT_SHOULDER : 0;
   gamepad_.wButtons |= input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_BLACK] ? XUSB_GAMEPAD_RIGHT_SHOULDER : 0;
 
-  if (button_remap_.size())
+  if (settings_.button_remap.size())
   {
     auto buttons = gamepad_.wButtons;
     gamepad_.wButtons = 0;
@@ -520,8 +542,8 @@ bool XboxController::update()
     if (buttons & XUSB_GAMEPAD_##btn) \
     { \
       auto remap = (int)XUSB_GAMEPAD_##btn; \
-      if (button_remap_.count(XUSB_GAMEPAD_##btn)) \
-        remap = button_remap_[XUSB_GAMEPAD_##btn]; \
+      if (settings_.button_remap.count(XUSB_GAMEPAD_##btn)) \
+        remap = settings_.button_remap[XUSB_GAMEPAD_##btn]; \
       gamepad_.wButtons |= remap; \
     }
 
@@ -552,20 +574,20 @@ bool XboxController::update()
     (input_prev_.Gamepad.wButtons & (OGXINPUT_GAMEPAD_DPAD_UP | OGXINPUT_GAMEPAD_DPAD_DOWN))) // Direction to change deadzone
     {
       // wait for previous deadzone adjustment button release
-      if (!deadzone_.hold){ 
+      if (!settings_.deadzone.hold){
         short adjustment = (input_prev_.Gamepad.wButtons & OGXINPUT_GAMEPAD_DPAD_UP ? 500 : -500);
 
         if (input_prev_.Gamepad.wButtons & OGXINPUT_GAMEPAD_LEFT_THUMB){
-          deadzone_.sThumbL = min(max(deadzone_.sThumbL+adjustment,0), SHRT_MAX);
+          settings_.deadzone.sThumbL = min(max(settings_.deadzone.sThumbL+adjustment,0), SHRT_MAX);
         } 
         if (input_prev_.Gamepad.wButtons & OGXINPUT_GAMEPAD_RIGHT_THUMB){
-          deadzone_.sThumbR = min(max(deadzone_.sThumbR+adjustment,0), SHRT_MAX);
+          settings_.deadzone.sThumbR = min(max(settings_.deadzone.sThumbR+adjustment,0), SHRT_MAX);
         }
 
         SaveDeadzones();
 
         // wait for button release
-        deadzone_.hold = true;
+        settings_.deadzone.hold = true;
       }
 
     // Trigger Deadzone Adjustment: (LT | RT) + LS + RS + D-Pad Up/Down
@@ -573,36 +595,36 @@ bool XboxController::update()
     ((input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_LEFT_TRIGGER] >= 0x8) ^ (input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_RIGHT_TRIGGER] >= 0x8)) &&  // Left XOR Right Trigger AND
     (input_prev_.Gamepad.wButtons & (OGXINPUT_GAMEPAD_DPAD_UP | OGXINPUT_GAMEPAD_DPAD_DOWN))) // Direction to change deadzone
     {
-      if(!deadzone_.hold){
+      if(!settings_.deadzone.hold){
         short adjustment = (input_prev_.Gamepad.wButtons & OGXINPUT_GAMEPAD_DPAD_UP ? 15 : -15);
         
         if (input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_LEFT_TRIGGER]){
-          deadzone_.bLeftTrigger = min(max(deadzone_.bLeftTrigger+adjustment,0), 0xFF);
+          settings_.deadzone.bLeftTrigger = min(max(settings_.deadzone.bLeftTrigger+adjustment,0), 0xFF);
         }
         if (input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_RIGHT_TRIGGER]){
-          deadzone_.bRightTrigger = min(max(deadzone_.bRightTrigger+adjustment,0), 0xFF);
+          settings_.deadzone.bRightTrigger = min(max(settings_.deadzone.bRightTrigger+adjustment,0), 0xFF);
         }
         
         SaveDeadzones();
 
         // wait for button release
-        deadzone_.hold = true;
+        settings_.deadzone.hold = true;
       }
     } else {
       // reset button release
-      deadzone_.hold = false;
+      settings_.deadzone.hold = false;
     }
   }
 
   // Analog Stick Deadzone Calculations
-  deadZoneCalc(&gamepad_.sThumbLX, &gamepad_.sThumbLY, input_prev_.Gamepad.sThumbLX, input_prev_.Gamepad.sThumbLY, deadzone_.sThumbL, SHRT_MAX);
-  deadZoneCalc(&gamepad_.sThumbRX, &gamepad_.sThumbRY, input_prev_.Gamepad.sThumbRX, input_prev_.Gamepad.sThumbRY, deadzone_.sThumbR, SHRT_MAX);
+  deadZoneCalc(&gamepad_.sThumbLX, &gamepad_.sThumbLY, input_prev_.Gamepad.sThumbLX, input_prev_.Gamepad.sThumbLY, settings_.deadzone.sThumbL, SHRT_MAX);
+  deadZoneCalc(&gamepad_.sThumbRX, &gamepad_.sThumbRY, input_prev_.Gamepad.sThumbRX, input_prev_.Gamepad.sThumbRY, settings_.deadzone.sThumbR, SHRT_MAX);
 
   // Trigger Deadzone Calculations
   short triggerbuf;
-  deadZoneCalc(&triggerbuf, NULL, input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_LEFT_TRIGGER], 0, deadzone_.bLeftTrigger, 0xFF);
+  deadZoneCalc(&triggerbuf, NULL, input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_LEFT_TRIGGER], 0, settings_.deadzone.bLeftTrigger, 0xFF);
   gamepad_.bLeftTrigger = triggerbuf;
-  deadZoneCalc(&triggerbuf, NULL, input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_RIGHT_TRIGGER], 0, deadzone_.bRightTrigger, 0xFF);
+  deadZoneCalc(&triggerbuf, NULL, input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_RIGHT_TRIGGER], 0, settings_.deadzone.bRightTrigger, 0xFF);
   gamepad_.bRightTrigger = triggerbuf;
 
   // Create a 'digital' bitfield so we can test combinations against LT/RT
@@ -613,7 +635,7 @@ bool XboxController::update()
     digitalPressed |= XUSB_GAMEPAD_RT;
 
   // Secret guide combination
-  if (combo_guideButton && (digitalPressed & combo_guideButton) == combo_guideButton)
+  if (settings_.guide_enabled && combo_guideButton && (digitalPressed & combo_guideButton) == combo_guideButton)
   {
     gamepad_.wButtons |= XUSB_GAMEPAD_GUIDE;
 
@@ -633,55 +655,55 @@ bool XboxController::update()
 
 void XboxController::GuideEnabled(bool value)
 {
-  guide_enabled_ = value;
-  SetSetting("EnableGuide", value ? "true" : "false");
+  settings_.guide_enabled = value;
+  SetSetting("EnableGuide", value ? "true" : "false", ini_key_);
 }
 
 void XboxController::VibrationEnabled(bool value)
 {
-  vibration_enabled_ = value;
-  SetSetting("EnableVibration", value ? "true" : "false");
+  settings_.vibration_enabled = value;
+  SetSetting("EnableVibration", value ? "true" : "false", ini_key_);
 }
 
 void XboxController::SaveDeadzones()
 {
   // WritePrivateProfile can only write strings, bleh
-  if (deadzone_.sThumbL)
-    SetSetting("DeadzoneLeftStick", std::to_string(deadzone_.sThumbL));
+  if (settings_.deadzone.sThumbL)
+    SetSetting("DeadzoneLeftStick", std::to_string(settings_.deadzone.sThumbL), ini_key_);
 
-  if (deadzone_.sThumbR)
-    SetSetting("DeadzoneRightStick", std::to_string(deadzone_.sThumbR));
+  if (settings_.deadzone.sThumbR)
+    SetSetting("DeadzoneRightStick", std::to_string(settings_.deadzone.sThumbR), ini_key_);
 
-  if (deadzone_.bLeftTrigger)
-    SetSetting("DeadzoneLeftTrigger", std::to_string(deadzone_.bLeftTrigger));
+  if (settings_.deadzone.bLeftTrigger)
+    SetSetting("DeadzoneLeftTrigger", std::to_string(settings_.deadzone.bLeftTrigger), ini_key_);
 
-  if (deadzone_.bRightTrigger)
-    SetSetting("DeadzoneRightTrigger", std::to_string(deadzone_.bRightTrigger));
+  if (settings_.deadzone.bRightTrigger)
+    SetSetting("DeadzoneRightTrigger", std::to_string(settings_.deadzone.bRightTrigger), ini_key_);
 }
 
-int XboxController::GetSettingInt(const std::string& setting, int default_val)
+int XboxController::GetSettingInt(const std::string& setting, int default_val, const std::string& ini_key)
 {
-  return GetPrivateProfileIntA(ini_key_.c_str(), setting.c_str(), default_val, ini_path);
+  return GetPrivateProfileIntA(ini_key.c_str(), setting.c_str(), default_val, ini_path);
 }
 
-std::string XboxController::GetSettingString(const std::string& setting, const std::string& default_val)
+std::string XboxController::GetSettingString(const std::string& setting, const std::string& default_val, const std::string& ini_key)
 {
   char result[256];
 
-  GetPrivateProfileStringA(ini_key_.c_str(), setting.c_str(), default_val.c_str(), result, 256, ini_path);
+  GetPrivateProfileStringA(ini_key.c_str(), setting.c_str(), default_val.c_str(), result, 256, ini_path);
 
   return result;
 }
 
-bool XboxController::GetSettingBool(const std::string& setting, bool default_val)
+bool XboxController::GetSettingBool(const std::string& setting, bool default_val, const std::string& ini_key)
 {
-  auto res = GetSettingString(setting, default_val ? "true" : "false");
+  auto res = GetSettingString(setting, default_val ? "true" : "false", ini_key);
   return res == "true" || res == "TRUE" || res == "yes" || res == "YES" || res == "1" || res == "Y";
 }
 
-void XboxController::SetSetting(const std::string& setting, const std::string& value)
+void XboxController::SetSetting(const std::string& setting, const std::string& value, const std::string& ini_key)
 {
-  WritePrivateProfileStringA(ini_key_.c_str(), setting.c_str(), value.c_str(), ini_path);
+  WritePrivateProfileStringA(ini_key.c_str(), setting.c_str(), value.c_str(), ini_path);
 }
 
 

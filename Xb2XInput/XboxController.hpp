@@ -73,6 +73,16 @@ struct Deadzone {
   bool hold; 
 };
 
+struct UserSettings {
+  bool guide_enabled = false;
+  bool vibration_enabled = false;
+
+  Deadzone deadzone = { 0 };
+
+  std::unordered_map<int, int> button_remap;
+  bool remap_enabled = false;
+};
+
 #pragma pack(pop)
 
 #define HID_GET_REPORT                0x01
@@ -108,29 +118,25 @@ class XboxController
   uint8_t endpoint_in_ = 0;
   uint8_t endpoint_out_ = 0;
 
-  Deadzone deadzone_ = {0};
   int deadZoneCalc(short *x_out, short *y_out, short x, short y, short deadzone, short sickzone);
 
-  bool guide_enabled_ = false;
-  bool vibration_enabled_ = false;
-
-  std::unordered_map<int, int> button_remap_;
+  UserSettings settings_;
 
   bool update();
 
-  int GetSettingInt(const std::string& setting, int default_val);
-  std::string GetSettingString(const std::string& setting, const std::string& default_val);
-  bool GetSettingBool(const std::string& setting, bool default_val);
+  static int GetSettingInt(const std::string& setting, int default_val, const std::string& ini_key);
+  static std::string GetSettingString(const std::string& setting, const std::string& default_val, const std::string& ini_key);
+  static bool GetSettingBool(const std::string& setting, bool default_val, const std::string& ini_key);
+  static void SetSetting(const std::string& setting, const std::string& value, const std::string& ini_key);
 
-  void SetSetting(const std::string& setting, const std::string& value);
-
+  static UserSettings LoadSettings(const std::string& ini_key, bool use_defaults);
   void SaveDeadzones();
 
 public:
-  bool GuideEnabled() { return guide_enabled_; }
+  bool GuideEnabled() { return settings_.guide_enabled; }
   void GuideEnabled(bool value);
 
-  bool VibrationEnabled() { return vibration_enabled_; }
+  bool VibrationEnabled() { return settings_.vibration_enabled; }
   void VibrationEnabled(bool value);
 
   XboxController(libusb_device_handle* handle, uint8_t* usb_ports, int num_ports);
@@ -140,7 +146,7 @@ public:
   const char* GetProductName() const { return usb_productname_; }
   const char* GetVendorName() const { return usb_vendorname_; }
   const char* GetSerialNo() const { return usb_serialno_; }
-  Deadzone GetDeadzone() { return deadzone_; }
+  Deadzone GetDeadzone() { return settings_.deadzone; }
   
   int GetControllerIndex()
   { 
