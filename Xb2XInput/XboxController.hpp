@@ -129,7 +129,7 @@ class XboxController
   static bool GetSettingBool(const std::string& setting, bool default_val, const std::string& ini_key);
   static void SetSetting(const std::string& setting, const std::string& value, const std::string& ini_key);
 
-  static UserSettings LoadSettings(const std::string& ini_key, bool use_defaults);
+  static UserSettings LoadSettings(const std::string& ini_key, const UserSettings& defaults);
   void SaveDeadzones();
 
 public:

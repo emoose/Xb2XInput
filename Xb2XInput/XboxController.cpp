@@ -148,32 +148,30 @@ libusb_device_handle* XboxController::OpenDevice()
   return ret;
 }
 
-UserSettings XboxController::LoadSettings(const std::string& ini_key, bool use_defaults)
+UserSettings XboxController::LoadSettings(const std::string& ini_key, const UserSettings& defaults)
 {
   UserSettings ret;
 
-  bool defaultVal = use_defaults ? defaults_.guide_enabled : true;
-  ret.guide_enabled = GetSettingBool("EnableGuide", defaultVal, ini_key);
+  ret.guide_enabled = GetSettingBool("EnableGuide", defaults.guide_enabled, ini_key);
 
-  if (ret.guide_enabled == defaultVal) // write setting to ini if this == default, in case it didn't already exist
-    SetSetting("EnableGuide", defaultVal ? "true" : "false", ini_key);
+  if (ret.guide_enabled == defaults.guide_enabled) // write setting to ini if this == default, in case it didn't already exist
+    SetSetting("EnableGuide", ret.guide_enabled ? "true" : "false", ini_key);
 
-  defaultVal = use_defaults ? defaults_.vibration_enabled : false;
-  ret.vibration_enabled = GetSettingBool("EnableVibration", defaultVal, ini_key);
+  ret.vibration_enabled = GetSettingBool("EnableVibration", defaults.vibration_enabled, ini_key);
 
-  if (ret.vibration_enabled == defaultVal) // write setting to ini if this == default, in case it didn't already exist
-    SetSetting("EnableVibration", defaultVal ? "true" : "false", ini_key); // write setting to ini if this == default, in case it didn't already exist
+  if (ret.vibration_enabled == defaults.vibration_enabled) // write setting to ini if this == default, in case it didn't already exist
+    SetSetting("EnableVibration", ret.vibration_enabled ? "true" : "false", ini_key); // write setting to ini if this == default, in case it didn't already exist
 
-  ret.deadzone.sThumbL = min(max(GetSettingInt("DeadzoneLeftStick", use_defaults ? defaults_.deadzone.sThumbL : 0, ini_key), 0), SHRT_MAX);
-  ret.deadzone.sThumbR = min(max(GetSettingInt("DeadzoneRightStick", use_defaults ? defaults_.deadzone.sThumbR : 0, ini_key), 0), SHRT_MAX);
-  ret.deadzone.bLeftTrigger = min(max(GetSettingInt("DeadzoneLeftTrigger", use_defaults ? defaults_.deadzone.bLeftTrigger : 0, ini_key), 0), 0xFF);
-  ret.deadzone.bRightTrigger = min(max(GetSettingInt("DeadzoneRightTrigger", use_defaults ? defaults_.deadzone.bRightTrigger : 0, ini_key), 0), 0xFF);
+  ret.deadzone.sThumbL = min(max(GetSettingInt("DeadzoneLeftStick", defaults.deadzone.sThumbL, ini_key), 0), SHRT_MAX);
+  ret.deadzone.sThumbR = min(max(GetSettingInt("DeadzoneRightStick", defaults.deadzone.sThumbR, ini_key), 0), SHRT_MAX);
+  ret.deadzone.bLeftTrigger = min(max(GetSettingInt("DeadzoneLeftTrigger", defaults.deadzone.bLeftTrigger, ini_key), 0), 0xFF);
+  ret.deadzone.bRightTrigger = min(max(GetSettingInt("DeadzoneRightTrigger", defaults.deadzone.bRightTrigger, ini_key), 0), 0xFF);
 
   ret.button_remap.clear();
-  if (use_defaults && defaults_.remap_enabled)
-    ret.button_remap = defaults_.button_remap;
+  if (defaults.remap_enabled)
+    ret.button_remap = defaults.button_remap;
 
-  if (GetSettingBool("RemapEnable", use_defaults ? defaults_.remap_enabled : false, ini_key))
+  if (GetSettingBool("RemapEnable", defaults.remap_enabled, ini_key))
   {
     std::string remap;
 
@@ -217,7 +215,12 @@ bool XboxController::Initialize(WCHAR* app_title)
     return true;
 
   // Load default INI settings
-  defaults_ = LoadSettings("Default", false);
+  defaults_.guide_enabled = true;
+  defaults_.vibration_enabled = true;
+  defaults_.deadzone = { 0 };
+  defaults_.remap_enabled = false;
+
+  defaults_ = LoadSettings("Default", defaults_);
 
   // Init libusb & ViGEm
   auto ret = libusb_init(NULL);
@@ -363,7 +366,7 @@ XboxController::XboxController(libusb_device_handle* handle, uint8_t* usb_ports,
   ini_key_ = ss.str();
 
   // Read in INI settings for this controller
-  settings_ = LoadSettings(ini_key_, true);
+  settings_ = LoadSettings(ini_key_, defaults_);
 
   usb_product_ = usb_desc_.idProduct;
   usb_vendor_ = usb_desc_.idVendor;
