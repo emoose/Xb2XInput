@@ -5,6 +5,7 @@
 
 #include <vector>
 #include <mutex>
+#include <unordered_map>
 
 // original xbox XINPUT definitions from https://github.com/paralin/hl2sdk/blob/master/common/xbox/xboxstubs.h
 
@@ -112,6 +113,8 @@ class XboxController
 
   bool guide_enabled_ = false;
   bool vibration_enabled_ = false;
+
+  std::unordered_map<int, int> button_remap_;
 
   bool update();
 

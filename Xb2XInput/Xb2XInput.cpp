@@ -387,6 +387,11 @@ std::unordered_map<std::string, int> xinput_buttons =
   { "LEFT", XUSB_GAMEPAD_DPAD_LEFT },
   { "RIGHT", XUSB_GAMEPAD_DPAD_RIGHT },
 
+  { "DPADUP", XUSB_GAMEPAD_DPAD_UP },
+  { "DPADDOWN", XUSB_GAMEPAD_DPAD_DOWN },
+  { "DPADLEFT", XUSB_GAMEPAD_DPAD_LEFT },
+  { "DPADRIGHT", XUSB_GAMEPAD_DPAD_RIGHT },
+
   { "A", XUSB_GAMEPAD_A },
   { "B", XUSB_GAMEPAD_B },
   { "X", XUSB_GAMEPAD_X },

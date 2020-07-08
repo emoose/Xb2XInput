@@ -60,6 +60,19 @@ extern int combo_guideButton;
 extern int combo_deadzoneIncrease;
 extern int combo_deadzoneDecrease;
 
+// Hacky defines to help with remap stuff
+#define XUSB_GAMEPAD_Start XUSB_GAMEPAD_START
+#define XUSB_GAMEPAD_Back XUSB_GAMEPAD_BACK
+#define XUSB_GAMEPAD_LS XUSB_GAMEPAD_LEFT_THUMB
+#define XUSB_GAMEPAD_RS XUSB_GAMEPAD_RIGHT_THUMB
+#define XUSB_GAMEPAD_White XUSB_GAMEPAD_LEFT_SHOULDER
+#define XUSB_GAMEPAD_Black XUSB_GAMEPAD_RIGHT_SHOULDER
+
+#define XUSB_GAMEPAD_DpadUp XUSB_GAMEPAD_DPAD_UP
+#define XUSB_GAMEPAD_DpadDown XUSB_GAMEPAD_DPAD_DOWN
+#define XUSB_GAMEPAD_DpadLeft XUSB_GAMEPAD_DPAD_LEFT
+#define XUSB_GAMEPAD_DpadRight XUSB_GAMEPAD_DPAD_RIGHT
+
 void dbgprintf(const char* format, ...)
 {
   static char buffer[256];
@@ -296,6 +309,39 @@ XboxController::XboxController(libusb_device_handle* handle, uint8_t* usb_ports,
   deadzone_.bLeftTrigger = min(max(GetSettingInt("DeadzoneLeftTrigger", 0), 0), 0xFF);
   deadzone_.bRightTrigger = min(max(GetSettingInt("DeadzoneRightTrigger", 0), 0), 0xFF);
 
+  button_remap_.clear();
+  if (GetSettingBool("RemapEnable", false))
+  {
+    std::string remap;
+
+    int ParseButtonCombination(const char* combo);
+#define LoadMap(btn) \
+    remap = GetSettingString("Remap" #btn, ""); \
+    if (remap.length()) \
+    { \
+      int combo = ParseButtonCombination(remap.c_str()); \
+      if (combo) \
+        button_remap_[XUSB_GAMEPAD_##btn] = combo; \
+    }
+
+    LoadMap(A);
+    LoadMap(B);
+    LoadMap(X);
+    LoadMap(Y);
+    LoadMap(Start);
+    LoadMap(Back);
+    LoadMap(LS);
+    LoadMap(RS);
+    LoadMap(Black);
+    LoadMap(White);
+    LoadMap(DpadUp);
+    LoadMap(DpadDown);
+    LoadMap(DpadLeft);
+    LoadMap(DpadRight);
+
+#undef LoadMap
+  }
+
   usb_product_ = usb_desc_.idProduct;
   usb_vendor_ = usb_desc_.idVendor;
 }
@@ -463,6 +509,38 @@ bool XboxController::update()
   gamepad_.wButtons |= input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_Y] ? XUSB_GAMEPAD_Y : 0;
   gamepad_.wButtons |= input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_WHITE] ? XUSB_GAMEPAD_LEFT_SHOULDER : 0;
   gamepad_.wButtons |= input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_BLACK] ? XUSB_GAMEPAD_RIGHT_SHOULDER : 0;
+
+  if (button_remap_.size())
+  {
+    auto buttons = gamepad_.wButtons;
+    gamepad_.wButtons = 0;
+
+    // TODO: could probably change this into a loop over XUSB_BUTTON enum instead of a macro?
+#define LoadMap(btn) \
+    if (buttons & XUSB_GAMEPAD_##btn) \
+    { \
+      auto remap = (int)XUSB_GAMEPAD_##btn; \
+      if (button_remap_.count(XUSB_GAMEPAD_##btn)) \
+        remap = button_remap_[XUSB_GAMEPAD_##btn]; \
+      gamepad_.wButtons |= remap; \
+    }
+
+    LoadMap(A);
+    LoadMap(B);
+    LoadMap(X);
+    LoadMap(Y);
+    LoadMap(Start);
+    LoadMap(Back);
+    LoadMap(LS);
+    LoadMap(RS);
+    LoadMap(Black);
+    LoadMap(White);
+    LoadMap(DpadUp);
+    LoadMap(DpadDown);
+    LoadMap(DpadLeft);
+    LoadMap(DpadRight);
+#undef LoadMap
+  }
 
   // Secret Deadzone Adjustment Combinations: 
   extern bool deadzoneCombinationEnabled; 
