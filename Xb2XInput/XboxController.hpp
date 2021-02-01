@@ -139,6 +139,11 @@ public:
   bool VibrationEnabled() { return settings_.vibration_enabled; }
   void VibrationEnabled(bool value);
 
+  bool RemapEnabled() { return settings_.remap_enabled; }
+  void RemapEnabled(bool value) { settings_.remap_enabled = value; }
+
+  const UserSettings& Settings() { return settings_; }
+
   XboxController(libusb_device_handle* handle, uint8_t* usb_ports, int num_ports);
   ~XboxController();
   int GetProductId() const { return usb_product_; }

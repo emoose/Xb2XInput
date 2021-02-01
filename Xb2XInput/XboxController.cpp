@@ -546,7 +546,7 @@ bool XboxController::update()
   deadZoneCalc(&triggerbuf, NULL, input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_RIGHT_TRIGGER], 0, settings_.deadzone.bRightTrigger, 0xFF);
   gamepad_.bRightTrigger = triggerbuf;
 
-  if (settings_.button_remap.size())
+  if (settings_.remap_enabled && settings_.button_remap.size())
   {
     auto buttons = gamepad_.wButtons;
     gamepad_.wButtons = 0;

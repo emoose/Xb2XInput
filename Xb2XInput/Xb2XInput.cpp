@@ -127,6 +127,7 @@ bool StartupDeleteEntry()
 // lower 12 bits are controller index into XboxController::controllers_
 #define ID_CONTROLLER_GUIDEBTN  0x2000
 #define ID_CONTROLLER_VIBRATION 0x4000
+#define ID_CONTROLLER_REMAP     0x8000
 
 WCHAR tray_text[128];
 
@@ -177,6 +178,12 @@ void SysTrayShowContextMenu()
       auto combo = "- Combination: " + PrintButtonCombination(combo_guideButton);
       InsertMenuA(hControllerMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING | MF_GRAYED, ID_TRAY_SEP, combo.c_str());
     }
+
+    InsertMenu(hControllerMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING |
+      (controller.RemapEnabled() ? MF_CHECKED : MF_UNCHECKED), ID_CONTROLLER_REMAP + i, L"Enable button remappings");
+
+    auto remapCount = "- " + std::to_string(controller.Settings().button_remap.size()) + " buttons remapped";
+    InsertMenuA(hControllerMenu, 0xFFFFFFFF, MF_BYPOSITION | MF_STRING | MF_GRAYED, ID_TRAY_SEP, remapCount.c_str());
 
     InsertMenu(hControllerMenu, 0xFFFFFFFF, MF_SEPARATOR, ID_TRAY_SEP, L"SEP");
 
@@ -233,7 +240,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
   case WM_COMMAND:
     wmId = LOWORD(wParam);
 
-    if (wmId & ID_CONTROLLER_GUIDEBTN || wmId & ID_CONTROLLER_VIBRATION)
+    if (wmId & ID_CONTROLLER_GUIDEBTN || wmId & ID_CONTROLLER_VIBRATION || wmId & ID_CONTROLLER_REMAP)
     {
       auto controllerId = wmId & 0xFFF;
       auto& pads = XboxController::GetControllers();
@@ -244,6 +251,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
           controller.GuideEnabled(!controller.GuideEnabled());
         if (wmId & ID_CONTROLLER_VIBRATION)
           controller.VibrationEnabled(!controller.VibrationEnabled());
+        if (wmId & ID_CONTROLLER_REMAP)
+          controller.RemapEnabled(!controller.RemapEnabled());
       }
     }
     else
