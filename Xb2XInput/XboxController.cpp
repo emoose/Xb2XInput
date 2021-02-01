@@ -171,7 +171,9 @@ UserSettings XboxController::LoadSettings(const std::string& ini_key, const User
   if (defaults.remap_enabled)
     ret.button_remap = defaults.button_remap;
 
-  if (GetSettingBool("RemapEnable", defaults.remap_enabled, ini_key))
+  ret.remap_enabled = GetSettingBool("RemapEnable", defaults.remap_enabled, ini_key);
+
+  if (ret.remap_enabled)
   {
     std::string remap;
 
@@ -201,6 +203,8 @@ UserSettings XboxController::LoadSettings(const std::string& ini_key, const User
     LoadMap(DpadDown);
     LoadMap(DpadLeft);
     LoadMap(DpadRight);
+    LoadMap(LT);
+    LoadMap(RT);
 
 #undef LoadMap
   }
@@ -535,10 +539,20 @@ bool XboxController::update()
   gamepad_.wButtons |= input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_WHITE] ? XUSB_GAMEPAD_LEFT_SHOULDER : 0;
   gamepad_.wButtons |= input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_BLACK] ? XUSB_GAMEPAD_RIGHT_SHOULDER : 0;
 
+  // Trigger Deadzone Calculations
+  short triggerbuf;
+  deadZoneCalc(&triggerbuf, NULL, input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_LEFT_TRIGGER], 0, settings_.deadzone.bLeftTrigger, 0xFF);
+  gamepad_.bLeftTrigger = triggerbuf;
+  deadZoneCalc(&triggerbuf, NULL, input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_RIGHT_TRIGGER], 0, settings_.deadzone.bRightTrigger, 0xFF);
+  gamepad_.bRightTrigger = triggerbuf;
+
   if (settings_.button_remap.size())
   {
     auto buttons = gamepad_.wButtons;
     gamepad_.wButtons = 0;
+
+    auto leftTrig = gamepad_.bLeftTrigger;
+    auto rightTrig = gamepad_.bRightTrigger;
 
     // TODO: could probably change this into a loop over XUSB_BUTTON enum instead of a macro?
 #define LoadMap(btn) \
@@ -547,7 +561,11 @@ bool XboxController::update()
       auto remap = (int)XUSB_GAMEPAD_##btn; \
       if (settings_.button_remap.count(XUSB_GAMEPAD_##btn)) \
         remap = settings_.button_remap[XUSB_GAMEPAD_##btn]; \
-      gamepad_.wButtons |= remap; \
+      gamepad_.wButtons |= (remap & ~(XUSB_GAMEPAD_LT | XUSB_GAMEPAD_RT)); \
+      if (remap & XUSB_GAMEPAD_LT) \
+        gamepad_.bLeftTrigger = 255; \
+      if (remap & XUSB_GAMEPAD_RT) \
+        gamepad_.bRightTrigger = 255; \
     }
 
     LoadMap(A);
@@ -565,6 +583,40 @@ bool XboxController::update()
     LoadMap(DpadLeft);
     LoadMap(DpadRight);
 #undef LoadMap
+
+    if (leftTrig >= 8)
+    {
+      if (settings_.button_remap.count(XUSB_GAMEPAD_LT))
+      {
+        gamepad_.bLeftTrigger = 0;
+
+        auto remap = settings_.button_remap[XUSB_GAMEPAD_LT];
+        gamepad_.wButtons |= (remap & ~(XUSB_GAMEPAD_LT | XUSB_GAMEPAD_RT));
+
+        if (remap & XUSB_GAMEPAD_LT)
+          gamepad_.bLeftTrigger = leftTrig;
+
+        if (remap & XUSB_GAMEPAD_RT)
+          gamepad_.bRightTrigger = leftTrig;
+      }
+    }
+
+    if (rightTrig >= 8)
+    {
+      if (settings_.button_remap.count(XUSB_GAMEPAD_RT))
+      {
+        gamepad_.bRightTrigger = 0;
+
+        auto remap = settings_.button_remap[XUSB_GAMEPAD_RT];
+        gamepad_.wButtons |= (remap & ~(XUSB_GAMEPAD_LT | XUSB_GAMEPAD_RT));
+
+        if (remap & XUSB_GAMEPAD_LT)
+          gamepad_.bLeftTrigger = rightTrig;
+
+        if (remap & XUSB_GAMEPAD_RT)
+          gamepad_.bRightTrigger = rightTrig;
+      }
+    }
   }
 
   // Secret Deadzone Adjustment Combinations: 
@@ -622,13 +674,6 @@ bool XboxController::update()
   // Analog Stick Deadzone Calculations
   deadZoneCalc(&gamepad_.sThumbLX, &gamepad_.sThumbLY, input_prev_.Gamepad.sThumbLX, input_prev_.Gamepad.sThumbLY, settings_.deadzone.sThumbL, SHRT_MAX);
   deadZoneCalc(&gamepad_.sThumbRX, &gamepad_.sThumbRY, input_prev_.Gamepad.sThumbRX, input_prev_.Gamepad.sThumbRY, settings_.deadzone.sThumbR, SHRT_MAX);
-
-  // Trigger Deadzone Calculations
-  short triggerbuf;
-  deadZoneCalc(&triggerbuf, NULL, input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_LEFT_TRIGGER], 0, settings_.deadzone.bLeftTrigger, 0xFF);
-  gamepad_.bLeftTrigger = triggerbuf;
-  deadZoneCalc(&triggerbuf, NULL, input_prev_.Gamepad.bAnalogButtons[OGXINPUT_GAMEPAD_RIGHT_TRIGGER], 0, settings_.deadzone.bRightTrigger, 0xFF);
-  gamepad_.bRightTrigger = triggerbuf;
 
   // Create a 'digital' bitfield so we can test combinations against LT/RT
   int digitalPressed = gamepad_.wButtons;

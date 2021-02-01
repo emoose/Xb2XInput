@@ -399,6 +399,9 @@ std::unordered_map<std::string, int> xinput_buttons =
 
   { "START", XUSB_GAMEPAD_START },
   { "BACK", XUSB_GAMEPAD_BACK },
+
+  { "WHITE", XUSB_GAMEPAD_LEFT_SHOULDER },
+  { "BLACK", XUSB_GAMEPAD_RIGHT_SHOULDER }
 };
 
 std::string PrintButtonCombination(int combo)
