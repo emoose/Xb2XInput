@@ -140,7 +140,7 @@ public:
   void VibrationEnabled(bool value);
 
   bool RemapEnabled() { return settings_.remap_enabled; }
-  void RemapEnabled(bool value) { settings_.remap_enabled = value; }
+  void RemapEnabled(bool value);
 
   const UserSettings& Settings() { return settings_; }
 

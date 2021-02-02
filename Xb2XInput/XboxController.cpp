@@ -713,6 +713,12 @@ void XboxController::VibrationEnabled(bool value)
   SetSetting("EnableVibration", value ? "true" : "false", ini_key_);
 }
 
+void XboxController::RemapEnabled(bool value)
+{
+  settings_.remap_enabled = value;
+  SetSetting("RemapEnable", value ? "true" : "false", ini_key_);
+}
+
 void XboxController::SaveDeadzones()
 {
   // WritePrivateProfile can only write strings, bleh
