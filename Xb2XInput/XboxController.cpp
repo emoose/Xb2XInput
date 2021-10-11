@@ -48,6 +48,8 @@ std::vector<std::pair<int, int>> xbox_devices =
   {0x0F30, 0x0202}, // Joytech Advanced Controller
   {0x0F30, 0x8888}, // BigBen XBMiniPad Controller
   {0x102C, 0xFF0C}, // Joytech Wireless Advanced Controller
+  {0x12AB, 0x0004}, // Konami DDR Pad
+  {0x12AB, 0x8809}, // Konami DDR Pad
   {0xFFFF, 0xFFFF}, // PowerWave Xbox Controller (The ID's may look sketchy but this controller actually uses it)
 };
 
@@ -497,27 +499,44 @@ bool XboxController::update()
 
   memset(&input_prev_, 0, sizeof(XboxInputReport));
   int length = 0;
-  int ret = -1;
 
   // if we have interrupt endpoints use those for better compatibility, otherwise fallback to control transfers
   if (endpoint_in_)
   {
     extern int poll_ms;
-    ret = libusb_interrupt_transfer(usb_handle_, endpoint_in_, (unsigned char*)&input_prev_, sizeof(XboxInputReport), &length, poll_ms);
+    int ret = libusb_interrupt_transfer(usb_handle_, endpoint_in_, (unsigned char*)&input_prev_, sizeof(XboxInputReport), &length, poll_ms);
     if (ret < 0)
-      return true; // No input available atm
+    {
+      if (ret == LIBUSB_ERROR_TIMEOUT)
+        return true; // No input available atm
+
+      dbgprintf(__FUNCTION__ ": libusb control transfer failed (code %d)", ret);
+      return false;
+    }
   }
   else
   {
     std::lock_guard<std::mutex> guard(usb_mutex_);
-    ret = libusb_control_transfer(usb_handle_, LIBUSB_ENDPOINT_IN | LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE,
+    length = libusb_control_transfer(usb_handle_, LIBUSB_ENDPOINT_IN | LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE,
       HID_GET_REPORT, (HID_REPORT_TYPE_INPUT << 8) | 0x00, 0, (unsigned char*)&input_prev_, sizeof(XboxInputReport), 1000);
 
-    if (ret < 0)
+    if (length < 0)
     {
-      dbgprintf(__FUNCTION__ ": libusb control transfer failed (code %d)", ret);
+      dbgprintf(__FUNCTION__ ": libusb control transfer failed (code %d)", length);
       return false;
     }
+  }
+
+  // Skip zero length packets
+  if (length == 0)
+  {
+    return true;
+  }
+
+  // Skip messages other than a controller update
+  if (input_prev_.bReportId != 0)
+  {
+    return true;
   }
 
   if (input_prev_.bSize != sizeof(XboxInputReport))
