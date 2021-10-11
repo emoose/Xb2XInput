@@ -395,14 +395,32 @@ void CALLBACK XboxController::OnVigemNotification(PVIGEM_CLIENT Client, PVIGEM_T
       LargeMotor = SmallMotor = 0;
 
     memset(&controller.output_prev_, 0, sizeof(XboxOutputReport));
-    controller.output_prev_.bSize = sizeof(XboxOutputReport);
+    controller.output_prev_.bReportId = XBOX_OUTPUT_REPORT_ID_RUMBLE;
+    controller.output_prev_.bSize = 2 + sizeof(controller.output_prev_.Rumble);
     controller.output_prev_.Rumble.wLeftMotorSpeed = _byteswap_ushort(LargeMotor); // why do these need to be byteswapped???
     controller.output_prev_.Rumble.wRightMotorSpeed = _byteswap_ushort(SmallMotor);
 
     {
       std::lock_guard<std::mutex> guard(usb_mutex_);
       libusb_control_transfer(controller.usb_handle_, LIBUSB_ENDPOINT_OUT | LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE,
-        HID_SET_REPORT, (HID_REPORT_TYPE_OUTPUT << 8) | 0x00, 0, (unsigned char*)&controller.output_prev_, sizeof(XboxOutputReport), 1000);
+        HID_SET_REPORT, (HID_REPORT_TYPE_OUTPUT << 8) | 0x00, 0, (unsigned char*)&controller.output_prev_, controller.output_prev_.bSize, 1000);
+    }
+
+    memset(&controller.output_prev_, 0, sizeof(XboxOutputReport));
+    controller.output_prev_.bReportId = XBOX_OUTPUT_REPORT_ID_LED;
+    controller.output_prev_.bSize = 2 + sizeof(controller.output_prev_.LED);
+    switch (LedNumber) {
+      case 0: controller.output_prev_.LED.bAnimationId = LED_ANIMATION_ID_ON_1; break;
+      case 1: controller.output_prev_.LED.bAnimationId = LED_ANIMATION_ID_ON_2; break;
+      case 2: controller.output_prev_.LED.bAnimationId = LED_ANIMATION_ID_ON_3; break;
+      case 3: controller.output_prev_.LED.bAnimationId = LED_ANIMATION_ID_ON_4; break;
+      default: controller.output_prev_.LED.bAnimationId = LED_ANIMATION_ID_ALL_OFF;
+    }
+
+    {
+        std::lock_guard<std::mutex> guard(usb_mutex_);
+        libusb_control_transfer(controller.usb_handle_, LIBUSB_ENDPOINT_OUT | LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE,
+            HID_SET_REPORT, (HID_REPORT_TYPE_OUTPUT << 8) | 0x00, 0, (unsigned char*)&controller.output_prev_, controller.output_prev_.bSize, 1000);
     }
 
     break;

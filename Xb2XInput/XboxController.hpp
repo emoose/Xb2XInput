@@ -58,11 +58,26 @@ struct XboxInputReport {
   OGXINPUT_GAMEPAD Gamepad;
 };
 
+#define XBOX_OUTPUT_REPORT_ID_RUMBLE 0
+#define XBOX_OUTPUT_REPORT_ID_LED 1
+#define LED_ANIMATION_ID_ALL_OFF 0
+#define LED_ANIMATION_ID_ON_1 6
+#define LED_ANIMATION_ID_ON_2 7
+#define LED_ANIMATION_ID_ON_3 8
+#define LED_ANIMATION_ID_ON_4 9
+
+struct XboxOutputReportLED {
+  BYTE bAnimationId;
+};
+
 struct XboxOutputReport {
   BYTE bReportId;
   BYTE bSize;
 
-  OGXINPUT_RUMBLE Rumble;
+  union {
+    OGXINPUT_RUMBLE Rumble;
+    XboxOutputReportLED LED;
+  };
 };
 
 struct Deadzone {
