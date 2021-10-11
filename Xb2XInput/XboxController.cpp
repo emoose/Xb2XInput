@@ -48,6 +48,8 @@ std::vector<std::pair<int, int>> xbox_devices =
   {0x0F30, 0x0202}, // Joytech Advanced Controller
   {0x0F30, 0x8888}, // BigBen XBMiniPad Controller
   {0x102C, 0xFF0C}, // Joytech Wireless Advanced Controller
+  {0x12AB, 0x0004}, // Konami DDR Pad
+  {0x12AB, 0x8809}, // Konami DDR Pad
   {0xFFFF, 0xFFFF}, // PowerWave Xbox Controller (The ID's may look sketchy but this controller actually uses it)
 };
 
@@ -393,14 +395,32 @@ void CALLBACK XboxController::OnVigemNotification(PVIGEM_CLIENT Client, PVIGEM_T
       LargeMotor = SmallMotor = 0;
 
     memset(&controller.output_prev_, 0, sizeof(XboxOutputReport));
-    controller.output_prev_.bSize = sizeof(XboxOutputReport);
+    controller.output_prev_.bReportId = XBOX_OUTPUT_REPORT_ID_RUMBLE;
+    controller.output_prev_.bSize = 2 + sizeof(controller.output_prev_.Rumble);
     controller.output_prev_.Rumble.wLeftMotorSpeed = _byteswap_ushort(LargeMotor); // why do these need to be byteswapped???
     controller.output_prev_.Rumble.wRightMotorSpeed = _byteswap_ushort(SmallMotor);
 
     {
       std::lock_guard<std::mutex> guard(usb_mutex_);
       libusb_control_transfer(controller.usb_handle_, LIBUSB_ENDPOINT_OUT | LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE,
-        HID_SET_REPORT, (HID_REPORT_TYPE_OUTPUT << 8) | 0x00, 0, (unsigned char*)&controller.output_prev_, sizeof(XboxOutputReport), 1000);
+        HID_SET_REPORT, (HID_REPORT_TYPE_OUTPUT << 8) | 0x00, 0, (unsigned char*)&controller.output_prev_, controller.output_prev_.bSize, 1000);
+    }
+
+    memset(&controller.output_prev_, 0, sizeof(XboxOutputReport));
+    controller.output_prev_.bReportId = XBOX_OUTPUT_REPORT_ID_LED;
+    controller.output_prev_.bSize = 2 + sizeof(controller.output_prev_.LED);
+    switch (LedNumber) {
+      case 0: controller.output_prev_.LED.bAnimationId = LED_ANIMATION_ID_ON_1; break;
+      case 1: controller.output_prev_.LED.bAnimationId = LED_ANIMATION_ID_ON_2; break;
+      case 2: controller.output_prev_.LED.bAnimationId = LED_ANIMATION_ID_ON_3; break;
+      case 3: controller.output_prev_.LED.bAnimationId = LED_ANIMATION_ID_ON_4; break;
+      default: controller.output_prev_.LED.bAnimationId = LED_ANIMATION_ID_ALL_OFF;
+    }
+
+    {
+        std::lock_guard<std::mutex> guard(usb_mutex_);
+        libusb_control_transfer(controller.usb_handle_, LIBUSB_ENDPOINT_OUT | LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE,
+            HID_SET_REPORT, (HID_REPORT_TYPE_OUTPUT << 8) | 0x00, 0, (unsigned char*)&controller.output_prev_, controller.output_prev_.bSize, 1000);
     }
 
     break;
@@ -497,27 +517,44 @@ bool XboxController::update()
 
   memset(&input_prev_, 0, sizeof(XboxInputReport));
   int length = 0;
-  int ret = -1;
 
   // if we have interrupt endpoints use those for better compatibility, otherwise fallback to control transfers
   if (endpoint_in_)
   {
     extern int poll_ms;
-    ret = libusb_interrupt_transfer(usb_handle_, endpoint_in_, (unsigned char*)&input_prev_, sizeof(XboxInputReport), &length, poll_ms);
+    int ret = libusb_interrupt_transfer(usb_handle_, endpoint_in_, (unsigned char*)&input_prev_, sizeof(XboxInputReport), &length, poll_ms);
     if (ret < 0)
-      return true; // No input available atm
+    {
+      if (ret == LIBUSB_ERROR_TIMEOUT)
+        return true; // No input available atm
+
+      dbgprintf(__FUNCTION__ ": libusb control transfer failed (code %d)", ret);
+      return false;
+    }
   }
   else
   {
     std::lock_guard<std::mutex> guard(usb_mutex_);
-    ret = libusb_control_transfer(usb_handle_, LIBUSB_ENDPOINT_IN | LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE,
+    length = libusb_control_transfer(usb_handle_, LIBUSB_ENDPOINT_IN | LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE,
       HID_GET_REPORT, (HID_REPORT_TYPE_INPUT << 8) | 0x00, 0, (unsigned char*)&input_prev_, sizeof(XboxInputReport), 1000);
 
-    if (ret < 0)
+    if (length < 0)
     {
-      dbgprintf(__FUNCTION__ ": libusb control transfer failed (code %d)", ret);
+      dbgprintf(__FUNCTION__ ": libusb control transfer failed (code %d)", length);
       return false;
     }
+  }
+
+  // Skip zero length packets
+  if (length == 0)
+  {
+    return true;
+  }
+
+  // Skip messages other than a controller update
+  if (input_prev_.bReportId != 0)
+  {
+    return true;
   }
 
   if (input_prev_.bSize != sizeof(XboxInputReport))
