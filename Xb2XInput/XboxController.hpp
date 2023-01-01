@@ -173,6 +173,7 @@ public:
     PVIGEM_TARGET Target,
     UCHAR LargeMotor,
     UCHAR SmallMotor,
-    UCHAR LedNumber
+    UCHAR LedNumber,
+    LPVOID UserData
   );
 };

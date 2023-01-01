@@ -59,17 +59,19 @@ DEFINE_GUID(GUID_DEVINTERFACE_BUSENUM_VIGEM,
 // 
 // IO control codes
 // 
-#define IOCTL_VIGEM_PLUGIN_TARGET       BUSENUM_W_IOCTL (IOCTL_VIGEM_BASE + 0x000)
-#define IOCTL_VIGEM_UNPLUG_TARGET       BUSENUM_W_IOCTL (IOCTL_VIGEM_BASE + 0x001)
-#define IOCTL_VIGEM_CHECK_VERSION       BUSENUM_W_IOCTL (IOCTL_VIGEM_BASE + 0x002)
+#define IOCTL_VIGEM_PLUGIN_TARGET           BUSENUM_W_IOCTL (IOCTL_VIGEM_BASE + 0x000)
+#define IOCTL_VIGEM_UNPLUG_TARGET           BUSENUM_W_IOCTL (IOCTL_VIGEM_BASE + 0x001)
+#define IOCTL_VIGEM_CHECK_VERSION           BUSENUM_W_IOCTL (IOCTL_VIGEM_BASE + 0x002)
+#define IOCTL_VIGEM_WAIT_DEVICE_READY       BUSENUM_W_IOCTL (IOCTL_VIGEM_BASE + 0x003)
 
-#define IOCTL_XUSB_REQUEST_NOTIFICATION BUSENUM_RW_IOCTL(IOCTL_VIGEM_BASE + 0x200)
-#define IOCTL_XUSB_SUBMIT_REPORT        BUSENUM_W_IOCTL (IOCTL_VIGEM_BASE + 0x201)
-#define IOCTL_DS4_SUBMIT_REPORT         BUSENUM_W_IOCTL (IOCTL_VIGEM_BASE + 0x202)
-#define IOCTL_DS4_REQUEST_NOTIFICATION  BUSENUM_W_IOCTL (IOCTL_VIGEM_BASE + 0x203)
-#define IOCTL_XGIP_SUBMIT_REPORT        BUSENUM_W_IOCTL (IOCTL_VIGEM_BASE + 0x204)
-#define IOCTL_XGIP_SUBMIT_INTERRUPT     BUSENUM_W_IOCTL (IOCTL_VIGEM_BASE + 0x205)
-#define IOCTL_XUSB_GET_USER_INDEX       BUSENUM_RW_IOCTL(IOCTL_VIGEM_BASE + 0x206)
+#define IOCTL_XUSB_REQUEST_NOTIFICATION     BUSENUM_RW_IOCTL(IOCTL_VIGEM_BASE + 0x200)
+#define IOCTL_XUSB_SUBMIT_REPORT            BUSENUM_W_IOCTL (IOCTL_VIGEM_BASE + 0x201)
+#define IOCTL_DS4_SUBMIT_REPORT             BUSENUM_W_IOCTL (IOCTL_VIGEM_BASE + 0x202)
+#define IOCTL_DS4_REQUEST_NOTIFICATION      BUSENUM_W_IOCTL (IOCTL_VIGEM_BASE + 0x203)
+//#define IOCTL_XGIP_SUBMIT_REPORT        BUSENUM_W_IOCTL (IOCTL_VIGEM_BASE + 0x204)
+//#define IOCTL_XGIP_SUBMIT_INTERRUPT     BUSENUM_W_IOCTL (IOCTL_VIGEM_BASE + 0x205)
+#define IOCTL_XUSB_GET_USER_INDEX           BUSENUM_RW_IOCTL(IOCTL_VIGEM_BASE + 0x206)
+#define IOCTL_DS4_AWAIT_OUTPUT_AVAILABLE    BUSENUM_RW_IOCTL(IOCTL_VIGEM_BASE + 0x207)
 
 
 //
@@ -182,6 +184,29 @@ VOID FORCEINLINE VIGEM_CHECK_VERSION_INIT(
 
     CheckVersion->Size = sizeof(VIGEM_CHECK_VERSION);
     CheckVersion->Version = Version;
+}
+
+#pragma endregion
+
+#pragma region Wait device ready
+
+typedef struct _VIGEM_WAIT_DEVICE_READY
+{
+    IN ULONG Size;
+
+    IN ULONG SerialNo;
+
+} VIGEM_WAIT_DEVICE_READY, * PVIGEM_WAIT_DEVICE_READY;
+
+VOID FORCEINLINE VIGEM_WAIT_DEVICE_READY_INIT(
+    _Out_ PVIGEM_WAIT_DEVICE_READY WaitReady,
+    _In_ ULONG SerialNo
+)
+{
+    RtlZeroMemory(WaitReady, sizeof(VIGEM_WAIT_DEVICE_READY));
+
+    WaitReady->Size = sizeof(VIGEM_WAIT_DEVICE_READY);
+    WaitReady->SerialNo = SerialNo;
 }
 
 #pragma endregion 
@@ -400,99 +425,82 @@ VOID FORCEINLINE DS4_SUBMIT_REPORT_INIT(
     DS4_REPORT_INIT(&Report->Report);
 }
 
-#pragma endregion
-
-#pragma region XGIP (aka Xbox One device) section - EXPERIMENTAL
-
-typedef struct _XGIP_REPORT
-{
-    UCHAR Buttons1;
-    UCHAR Buttons2;
-    SHORT LeftTrigger;
-    SHORT RightTrigger;
-    SHORT ThumbLX;
-    SHORT ThumbLY;
-    SHORT ThumbRX;
-    SHORT ThumbRY;
-
-} XGIP_REPORT, *PXGIP_REPORT;
+#include <pshpack1.h>
 
 //
-// Xbox One request data
+// DualShock 4 extended report request
 // 
-typedef struct _XGIP_SUBMIT_REPORT
+typedef struct _DS4_SUBMIT_REPORT_EX
 {
     //
-    // sizeof(struct _XGIP_SUBMIT_REPORT)
-    // 
-    ULONG Size;
+     // sizeof(struct _DS4_SUBMIT_REPORT_EX)
+     // 
+    _In_ ULONG Size;
 
     //
     // Serial number of target device.
     // 
-    ULONG SerialNo;
+    _In_ ULONG SerialNo;
 
     //
-    // HID Input report
+    // Full size HID report excluding fixed Report ID.
     // 
-    XGIP_REPORT Report;
+    _In_ DS4_REPORT_EX Report;
 
-} XGIP_SUBMIT_REPORT, *PXGIP_SUBMIT_REPORT;
+} DS4_SUBMIT_REPORT_EX, * PDS4_SUBMIT_REPORT_EX;
+
+#include <poppack.h>
 
 //
-// Initializes an Xbox One report.
+// Initializes a DualShock 4 extended report.
 // 
-VOID FORCEINLINE XGIP_SUBMIT_REPORT_INIT(
-    _Out_ PXGIP_SUBMIT_REPORT Report,
+VOID FORCEINLINE DS4_SUBMIT_REPORT_EX_INIT(
+    _Out_ PDS4_SUBMIT_REPORT_EX Report,
     _In_ ULONG SerialNo
 )
 {
-    RtlZeroMemory(Report, sizeof(XGIP_SUBMIT_REPORT));
+    RtlZeroMemory(Report, sizeof(DS4_SUBMIT_REPORT_EX));
 
-    Report->Size = sizeof(XGIP_SUBMIT_REPORT);
-    Report->SerialNo = SerialNo;
-}
-
-//
-// Xbox One interrupt data
-// 
-typedef struct _XGIP_SUBMIT_INTERRUPT
-{
-    //
-    // sizeof(struct _XGIP_SUBMIT_INTERRUPT)
-    // 
-    ULONG Size;
-
-    //
-    // Serial number of target device.
-    // 
-    ULONG SerialNo;
-
-    //
-    // Interrupt buffer.
-    // 
-    UCHAR Interrupt[64];
-
-    //
-    // Length of interrupt buffer.
-    // 
-    ULONG InterruptLength;
-
-} XGIP_SUBMIT_INTERRUPT, *PXGIP_SUBMIT_INTERRUPT;
-
-//
-// Initializes an Xbox One interrupt.
-// 
-VOID FORCEINLINE XGIP_SUBMIT_INTERRUPT_INIT(
-    _Out_ PXGIP_SUBMIT_INTERRUPT Report,
-    _In_ ULONG SerialNo
-)
-{
-    RtlZeroMemory(Report, sizeof(XGIP_SUBMIT_INTERRUPT));
-
-    Report->Size = sizeof(XGIP_SUBMIT_INTERRUPT);
+    Report->Size = sizeof(DS4_SUBMIT_REPORT_EX);
     Report->SerialNo = SerialNo;
 }
 
 #pragma endregion
 
+#pragma region DS4 Await Output
+
+#include <pshpack1.h>
+
+typedef struct _DS4_AWAIT_OUTPUT
+{
+	//
+	// sizeof(struct _DS4_AWAIT_OUTPUT)
+	// 
+	_In_ ULONG Size;
+
+	//
+	// Serial number of target device.
+	// 
+	_Inout_ ULONG SerialNo;
+
+    //
+    // The payload
+    // 
+    _Out_ DS4_OUTPUT_BUFFER Report;
+    
+} DS4_AWAIT_OUTPUT, * PDS4_AWAIT_OUTPUT;
+
+#include <poppack.h>
+
+VOID FORCEINLINE DS4_AWAIT_OUTPUT_INIT(
+	_Out_ PDS4_AWAIT_OUTPUT Output,
+    _In_ ULONG SerialNo
+)
+{
+	RtlZeroMemory(Output, sizeof(DS4_AWAIT_OUTPUT));
+
+	Output->Size = sizeof(DS4_AWAIT_OUTPUT);
+    Output->SerialNo = SerialNo;
+}
+
+#pragma endregion

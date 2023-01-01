@@ -37,21 +37,21 @@ SOFTWARE.
 typedef struct _VIGEM_CLIENT_T
 {
     HANDLE hBusDevice;
-
+    HANDLE hDS4OutputReportPickupThread;
+    HANDLE hDS4OutputReportPickupThreadAbortEvent;
+    PVIGEM_TARGET pTargetsList[VIGEM_TARGETS_MAX];
 } VIGEM_CLIENT;
 
 //
 // Represents the (connection) state of a target device object.
 // 
-typedef enum _VIGEM_TARGET_STATE
+typedef enum
 {
     VIGEM_TARGET_NEW,
     VIGEM_TARGET_INITIALIZED,
     VIGEM_TARGET_CONNECTED,
     VIGEM_TARGET_DISCONNECTED
 } VIGEM_TARGET_STATE, *PVIGEM_TARGET_STATE;
-
-
 
 //
 // Represents a virtual gamepad object.
@@ -65,8 +65,18 @@ typedef struct _VIGEM_TARGET_T
     USHORT ProductId;
     VIGEM_TARGET_TYPE Type;
     FARPROC Notification;
-
-	bool closingNotificationThreads;
-	HANDLE cancelNotificationThreadEvent;
-	std::unique_ptr<std::vector<std::thread>> notificationThreadList;
+    LPVOID NotificationUserData;
+    BOOLEAN IsWaitReadyUnsupported;
+	HANDLE CancelNotificationThreadEvent;
+    DS4_OUTPUT_BUFFER Ds4CachedOutputReport;
+    HANDLE Ds4CachedOutputReportUpdateAvailable;
 } VIGEM_TARGET;
+
+#define DEVICE_IO_CONTROL_BEGIN	\
+	DWORD transferred = 0; \
+	OVERLAPPED lOverlapped = { 0 }; \
+	lOverlapped.hEvent = CreateEvent(NULL, FALSE, FALSE, NULL)
+
+#define DEVICE_IO_CONTROL_END \
+	if (lOverlapped.hEvent) \
+		CloseHandle(lOverlapped.hEvent)
