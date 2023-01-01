@@ -30,6 +30,7 @@ std::vector<std::pair<int, int>> xbox_devices =
   {0x0738, 0x4556}, // MadCatz Lynx Wireless Controller
   {0x0738, 0x4586}, // MadCatz MicroCon Wireless Controller
   {0x0738, 0x4588}, // MadCatz Blaster
+  {0x0738, 0x6320}, // MadCatz MC2 Universal Racing Wheel and Pedals
   {0x0C12, 0x0005}, // Intec wireless
   {0x0C12, 0x8801}, // Nyko Xbox Controller
   {0x0C12, 0x8802}, // Zeroplus Xbox Controller
@@ -382,7 +383,7 @@ XboxController::~XboxController()
   active_ = false;
 }
 
-void CALLBACK XboxController::OnVigemNotification(PVIGEM_CLIENT Client, PVIGEM_TARGET Target, UCHAR LargeMotor, UCHAR SmallMotor, UCHAR LedNumber)
+void CALLBACK XboxController::OnVigemNotification(PVIGEM_CLIENT Client, PVIGEM_TARGET Target, UCHAR LargeMotor, UCHAR SmallMotor, UCHAR LedNumber, LPVOID UserData)
 {
   for (auto& controller : controllers_)
   {
