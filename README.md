@@ -19,6 +19,8 @@ While it's not fully user-mode as it needs the ViGEmBus driver to be installed, 
 - Not tied to Xbox - can be used to add support for pretty much any kind of controller
 - Signed!
 
+This fork has new devices added. Check XboxController.cpp in the patch-1 branch. New additions are marked with (NEW) on the end.
+
 Setup
 ---
 Download the latest compiled version of Xb2XInput from the [releases page](https://github.com/emoose/Xb2XInput/releases).
