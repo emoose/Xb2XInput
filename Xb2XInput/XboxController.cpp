@@ -49,6 +49,17 @@ std::vector<std::pair<int, int>> xbox_devices =
   {0x0F30, 0x8888}, // BigBen XBMiniPad Controller
   {0x102C, 0xFF0C}, // Joytech Wireless Advanced Controller
   {0xFFFF, 0xFFFF}, // PowerWave Xbox Controller (The ID's may look sketchy but this controller actually uses it)
+  {0x0F0D, 0x0001}, // HORI DEAD OR ALIVE 3 STICK (NEW, tested & works)
+  {0x3767, 0x0101}, // Fanatec Speedster 3 ForceShock Steering Wheel (NEW, not tested)
+  {0x044F, 0x0F00}, // Thrustmaster Wheel (NEW, not tested)
+  {0x044F, 0x0F03}, // Thrustmaster Wheel (NEW, not tested)
+  {0x044F, 0x0F10}, // Thrustmaster Modena GT (NEW, not tested)
+  {0x046D, 0xCA8A}, // Logitech Precision Vibration Feedback Wheel (NEW, tested & works)
+  {0x046D, 0xC181}, // Logitech Precision Vibration Feedback Wheel (NEW, not tested, should work)
+  {0x062A, 0x0033}, // Competition Pro Steering Wheel (NEW, not tested)
+  {0x06A3, 0x0200}, // Saitek Racingwheel (NEW, not tested)
+  {0x0738, 0x4530}, // Mad Catz Universal MC2™ Racing Wheel and Pedals (NEW, not tested)
+  {0x0E8F, 0x0201}, // Gamexpert PS2/GC/Xbox Steering Wheel (NEW, not tested)
 };
 
 UserSettings defaults_;
