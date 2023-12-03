@@ -48,7 +48,8 @@ std::vector<std::pair<int, int>> xbox_devices =
   {0x0F30, 0x0202}, // Joytech Advanced Controller
   {0x0F30, 0x8888}, // BigBen XBMiniPad Controller
   {0x102C, 0xFF0C}, // Joytech Wireless Advanced Controller
-  {0x0F0D, 0x0001}, // HORI DEAD OR ALIVE 3 STICK (NEW)
+  {0x0F0D, 0x0001}, // HORI DEAD OR ALIVE 3 STICK (NEW, tested & works)
+  {0x3767, 0x0101}, // Fanatec Speedster 3 ForceShock Steering Wheel (NEW, not tested)
   {0xFFFF, 0xFFFF}, // PowerWave Xbox Controller (The ID's may look sketchy but this controller actually uses it)
 };
 
