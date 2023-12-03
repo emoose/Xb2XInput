@@ -10,7 +10,7 @@
 // how many times to check the USB device each second, must be 1000 or lower, higher value = higher CPU usage
 // 144 seems a good value, i don't really know anyone that uses a higher refresh rate than that...
 // TODO: make this configurable?
-const int poll_rate = 144;
+const int poll_rate = 600;
 
 int poll_ms = (1000 / min(1000, poll_rate));
 
