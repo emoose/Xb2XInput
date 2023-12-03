@@ -1,4 +1,4 @@
-## Xb2XInput - user-mode Xbox OG controller driver for Windows
+## Xb2XInput fork - user-mode Xbox OG controller driver for Windows with new devices added
 
 Xb2XInput is a small application that can translate the input from an Xbox OG controller over to a virtual XInput/DirectInput device for games to make use of, without needing any unsigned drivers to be installed!
 
@@ -19,7 +19,7 @@ While it's not fully user-mode as it needs the ViGEmBus driver to be installed, 
 - Not tied to Xbox - can be used to add support for pretty much any kind of controller
 - Signed!
 
-This fork has new devices added. Check XboxController.cpp in the patch-1 branch. New additions are marked with (NEW) on the end.
+This fork has new devices added. Check the corresponding section of the readme.md to see the list of additions.
 
 Setup
 ---
@@ -87,6 +87,10 @@ For a list of all supported controllers see the top section of [XboxController.c
 While a controller might be supported that doesn't mean it's been tested or works, the majority should hopefully all work without problem, but there could be some edge cases.
 
 If you have any issues, or have a controller that isn't on this list, please make an issue on the issues page (including the hardware ID, see Support section above)
+
+NEW SUPPORTED PERIPHERALS
+---
+- Dead or Alive 3 Hori Arcade Stick (HORI DEAD OR ALIVE 3 STICK)
 
 Thanks
 ---
