@@ -65,6 +65,15 @@ struct XboxOutputReport {
   OGXINPUT_RUMBLE Rumble;
 };
 
+struct ControlBuffer {
+  uint8_t  bmRequestType;
+  uint8_t  bRequest;
+  uint16_t wValue;
+  uint16_t wIndex;
+  uint16_t wLength;
+  XboxInputReport buffer;
+};
+
 struct Deadzone {
   short sThumbL;
   short sThumbR;
@@ -100,6 +109,7 @@ class XboxController
 
   PVIGEM_TARGET target_ = 0;
 
+  libusb_transfer* usb_transfer_;
   libusb_device_descriptor usb_desc_;
   char usb_productname_[128];
   char usb_vendorname_[128];
@@ -109,7 +119,7 @@ class XboxController
 
   bool closing_ = false;
 
-  XboxInputReport input_prev_;
+  ControlBuffer ctrl_buff_;
   XboxOutputReport output_prev_;
   XUSB_REPORT gamepad_;
 
@@ -123,6 +133,8 @@ class XboxController
   UserSettings settings_;
 
   bool update();
+  bool PollUSB();
+  static void LIBUSB_CALL SendViGemWrapper(struct libusb_transfer* transfer);
 
   static int GetSettingInt(const std::string& setting, int default_val, const std::string& ini_key);
   static std::string GetSettingString(const std::string& setting, const std::string& default_val, const std::string& ini_key);
@@ -141,6 +153,8 @@ public:
 
   bool RemapEnabled() { return settings_.remap_enabled; }
   void RemapEnabled(bool value);
+
+  void SendViGem();
 
   const UserSettings& Settings() { return settings_; }
 
@@ -173,6 +187,7 @@ public:
     PVIGEM_TARGET Target,
     UCHAR LargeMotor,
     UCHAR SmallMotor,
-    UCHAR LedNumber
+    UCHAR LedNumber,
+    LPVOID UserData
   );
 };

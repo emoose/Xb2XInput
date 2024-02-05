@@ -26,6 +26,8 @@ int combo_guideButton = 0;
 WCHAR title[256];
 bool usb_end = false;
 
+libusb_context* usb_ctx = nullptr;
+
 #pragma region Startup Helpers
 long RegistryGetString(HKEY hKey, const std::wstring& valueName, std::wstring& value, const std::wstring& defaultValue)
 {
@@ -372,7 +374,11 @@ void USBUpdateThread()
       Sleep(500); // sleep for a bit so we don't hammer the CPU
 
     XboxController::UpdateAll();
-    Sleep(poll_ms);
+
+    struct timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = poll_ms * 1000;
+    libusb_handle_events_timeout(usb_ctx, &tv);
   }
 }
 #pragma endregion
