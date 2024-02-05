@@ -483,7 +483,7 @@ bool XboxController::update()
       auto ret = vigem_target_add(vigem, target_);
       if (VIGEM_SUCCESS(ret))
       {
-        vigem_target_x360_register_notification(vigem, target_, XboxController::OnVigemNotification);
+        vigem_target_x360_register_notification(vigem, target_, XboxController::OnVigemNotification, NULL);
         active_ = true;
         break;
       }
@@ -496,35 +496,85 @@ bool XboxController::update()
   if (closing_)
     return true;
 
-  memset(&input_prev_, 0, sizeof(XboxInputReport));
-  int length = 0;
+  if (usb_transfer_) {
+    if (usb_transfer_->status == LIBUSB_TRANSFER_TIMED_OUT) {
+      libusb_free_transfer(usb_transfer_);
+      usb_transfer_ = NULL;
+    }
+  }
+  else {
+    if (!PollUSB())
+      return false;
+  }
+
+  return true;
+}
+
+// XboxController::pollUSB: sends a poll request to usb and calls back when finished
+bool XboxController::PollUSB()
+{
   int ret = -1;
+  extern int poll_ms;
+  usb_transfer_ = libusb_alloc_transfer(0);
 
   // if we have interrupt endpoints use those for better compatibility, otherwise fallback to control transfers
   if (endpoint_in_)
   {
-    extern int poll_ms;
-    ret = libusb_interrupt_transfer(usb_handle_, endpoint_in_, (unsigned char*)&input_prev_, sizeof(XboxInputReport), &length, poll_ms);
-    if (ret < 0)
-      return true; // No input available atm
+    libusb_fill_interrupt_transfer(usb_transfer_,
+      usb_handle_,
+      endpoint_in_,
+      (unsigned char*)&(ctrl_buff_.buffer),
+      sizeof(XboxInputReport),
+      SendViGemWrapper,
+      this,
+      0
+    );
+    ret = libusb_submit_transfer(usb_transfer_);
   }
   else
   {
     std::lock_guard<std::mutex> guard(usb_mutex_);
-    ret = libusb_control_transfer(usb_handle_, LIBUSB_ENDPOINT_IN | LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE,
-      HID_GET_REPORT, (HID_REPORT_TYPE_INPUT << 8) | 0x00, 0, (unsigned char*)&input_prev_, sizeof(XboxInputReport), 1000);
-
-    if (ret < 0)
-    {
-      dbgprintf(__FUNCTION__ ": libusb control transfer failed (code %d)", ret);
-      return false;
-    }
+    libusb_fill_control_setup((unsigned char*)&ctrl_buff_,
+      LIBUSB_ENDPOINT_IN | LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE,
+      HID_GET_REPORT,
+      (HID_REPORT_TYPE_INPUT << 8) | 0x00,
+      0,
+      sizeof(XboxInputReport)
+    );
+    libusb_fill_control_transfer(usb_transfer_,
+      usb_handle_,
+      (unsigned char*)&ctrl_buff_,
+      SendViGemWrapper,
+      this,
+      0
+    );
+    ret = libusb_submit_transfer(usb_transfer_);
   }
 
+  if (ret < 0) {
+    dbgprintf(__FUNCTION__ ": libusb send failed: %s\n", libusb_strerror(ret));
+    return false;
+  }
+
+  return true;
+}
+
+void LIBUSB_CALL XboxController::SendViGemWrapper(struct libusb_transfer* transfer)
+{
+  XboxController* dev = reinterpret_cast<XboxController*>(transfer->user_data);
+  libusb_free_transfer(dev->usb_transfer_);
+  dev->usb_transfer_ = NULL;
+  dev->SendViGem();
+}
+
+// XboxController::sendViGem: callback to take data to vigembus
+void XboxController::SendViGem()
+{
+  XboxInputReport input_prev_ = ctrl_buff_.buffer;
   if (input_prev_.bSize != sizeof(XboxInputReport))
   {
-    dbgprintf(__FUNCTION__ ": controller returned invalid report size %d (expected %d)", input_prev_.bSize, sizeof(XboxInputReport));
-    return false;
+    //dbgprintf(__FUNCTION__ ": controller returned invalid report size %d (expected %d)\n", input_prev_.bSize, sizeof(XboxInputReport));
+    return;
   }
 
   memset(&gamepad_, 0, sizeof(XUSB_REPORT));
@@ -698,8 +748,7 @@ bool XboxController::update()
 
   // Write gamepad to virtual XInput device
   vigem_target_x360_update(vigem, target_, gamepad_);
-
-  return true;
+  memset(&(ctrl_buff_.buffer), 0, sizeof(XboxInputReport));
 }
 
 void XboxController::GuideEnabled(bool value)
